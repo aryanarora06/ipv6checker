@@ -27,7 +27,58 @@
 .nav-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
+}
+
+.nav-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+}
+
+.client-test {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.client-test.checking {
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+}
+
+.client-test-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1s infinite alternate;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.3; transform: scale(0.8); }
+  100% { opacity: 1; transform: scale(1.1); }
+}
+
+.client-test.v6-ready {
+  color: var(--green);
+  background: var(--green-dim);
+}
+
+.client-test.v6-ready svg {
+  width: 12px;
+  height: 12px;
+}
+
+.client-test.v4-only {
+  color: var(--text-dim);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
 }
 
 .kbd-hint {

@@ -338,6 +338,39 @@ function ServerList({ title, items, badge }) {
   );
 }
 
+/* ── Client Connection Test ── */
+function ClientConnectionTest() {
+  const [status, setStatus] = useState('checking'); // 'checking' | 'v6' | 'v4'
+  const [ip, setIp] = useState('');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout
+
+    fetch('https://ipv6.icanhazip.com', { signal: controller.signal, cache: 'no-store' })
+      .then(res => res.text())
+      .then(text => {
+        clearTimeout(timeoutId);
+        setIp(text.trim());
+        setStatus('v6');
+      })
+      .catch(() => {
+        clearTimeout(timeoutId);
+        setStatus('v4');
+      });
+
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  if (status === 'checking') {
+    return <div className="client-test checking"><span className="client-test-dot" />Checking your network...</div>;
+  }
+  if (status === 'v6') {
+    return <div className="client-test v6-ready" title={`Your IPv6: ${ip}`}>You have IPv6 {Icon.check}</div>;
+  }
+  return <div className="client-test v4-only" title="Your internet service provider or router does not currently support IPv6.">You are on IPv4</div>;
+}
+
 /* ════════════════════════════
    App
    ════════════════════════════ */
@@ -479,6 +512,8 @@ function App() {
         <div className="nav-inner">
           <a href="/" className="logo"><span className="logo-mark">v6</span><span className="logo-text">ipv6checker</span></a>
           <div className="nav-right">
+            <ClientConnectionTest />
+            <div className="nav-divider" />
             <kbd className="kbd-hint">{/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+'}K</kbd>
             <button className="theme-toggle" onClick={toggleTheme} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
               {theme === 'dark' ? Icon.sun : Icon.moon}
