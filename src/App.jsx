@@ -113,12 +113,15 @@ async function hasAAAA(hostname) {
 async function lookupDomain(target) {
   const t0 = performance.now();
 
-  /* Phase 1: A, AAAA, MX, NS in parallel */
-  const [dataAAAA, dataA, dataMX, dataNS] = await Promise.all([
+  /* Phase 1: A, AAAA, MX, NS, DNSKEY, TXT (root), TXT (_dmarc) in parallel */
+  const [dataAAAA, dataA, dataMX, dataNS, dataDNSKEY, dataTXT, dataDMARC] = await Promise.all([
     dohQuery(target, 'AAAA'),
     dohQuery(target, 'A'),
     dohQuery(target, 'MX'),
     dohQuery(target, 'NS'),
+    dohQuery(target, 'DNSKEY'),
+    dohQuery(target, 'TXT'),
+    dohQuery(`_dmarc.${target}`, 'TXT'),
   ]);
 
   if (dataAAAA.Status === 3 && dataA.Status === 3) return { domain: target, error: 'NXDOMAIN' };
@@ -150,6 +153,11 @@ async function lookupDomain(target) {
 
   const mxHasIPv6 = mxResults.some(m => m.hasIPv6);
   const nsHasIPv6 = nsResults.some(n => n.hasIPv6);
+
+  /* Security / TXT Check */
+  const hasDNSSEC = (dataDNSKEY.Answer || []).some(a => a.type === 48);
+  const hasSPF = (dataTXT.Answer || []).some(a => a.type === 16 && a.data.includes('v=spf1'));
+  const hasDMARC = (dataDMARC.Answer || []).some(a => a.type === 16 && a.data.includes('v=DMARC1'));
 
   /* Scoring: 100 total */
   let score = 0;
@@ -191,6 +199,9 @@ async function lookupDomain(target) {
     nsHasIPv6,
     hasMX: mxHosts.length > 0,
     hasNS: nsHosts.length > 0,
+    hasDNSSEC,
+    hasSPF,
+    hasDMARC,
     error: null,
   };
 }
@@ -746,6 +757,36 @@ function App() {
                 ))}
               </div>
             )}
+
+            <div className="divider" />
+
+            {/* Security Checks */}
+            <div className="security-section">
+              <p className="section-title">Security & Protection</p>
+              <div className="security-grid">
+                <div className="security-card">
+                  <span className="security-label">DNSSEC</span>
+                  <span className={`security-badge ${result.hasDNSSEC ? 'sec-pass' : 'sec-fail'}`}>
+                    {result.hasDNSSEC ? 'Enabled ✓' : 'Not Configured'}
+                  </span>
+                  <p className="security-desc">Protects against DNS spoofing.</p>
+                </div>
+                <div className="security-card">
+                  <span className="security-label">SPF Record</span>
+                  <span className={`security-badge ${result.hasSPF ? 'sec-pass' : 'sec-fail'}`}>
+                    {result.hasSPF ? 'Enabled ✓' : 'Not Configured'}
+                  </span>
+                  <p className="security-desc">Prevents email sender spoofing.</p>
+                </div>
+                <div className="security-card">
+                  <span className="security-label">DMARC Record</span>
+                  <span className={`security-badge ${result.hasDMARC ? 'sec-pass' : 'sec-fail'}`}>
+                    {result.hasDMARC ? 'Enabled ✓' : 'Not Configured'}
+                  </span>
+                  <p className="security-desc">Enforces email authentication.</p>
+                </div>
+              </div>
+            </div>
 
             <div className="divider" />
 

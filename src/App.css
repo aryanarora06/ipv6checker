@@ -1083,6 +1083,61 @@
   border-color: var(--border);
 }
 
+/* ── Security ── */
+.security-section {
+  padding: 24px;
+}
+
+.security-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.security-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.security-card:hover {
+  border-color: var(--text-dim);
+  transform: translateY(-2px);
+}
+
+.security-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.security-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.sec-pass { background: var(--green-dim); color: var(--green); }
+.sec-fail { background: var(--red-dim); color: var(--red); }
+
+.security-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
 /* ── Light theme overrides ── */
 [data-theme="light"] .nav {
   background: var(--bg-surface);
