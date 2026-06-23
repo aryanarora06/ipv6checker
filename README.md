@@ -10,8 +10,6 @@ A fast, client-side, browser-based tool to check the IPv6 readiness of any domai
 
 Because it operates **100% client-side**, all queries are executed directly from the user's browser using Google's DNS-over-HTTPS API (`dns.google`). This means no backend servers are required, your queries remain private, and the tool can be hosted cheaply as a static site on platforms like GitHub Pages, Vercel, or Netlify.
 
----
-
 ## Features
 
 - **Single Domain Lookup**: Get an instant readiness score (0-100) based on AAAA records.
@@ -21,8 +19,6 @@ Because it operates **100% client-side**, all queries are executed directly from
 - **Local History**: Your recent lookups are saved in your browser's `localStorage` for quick access.
 - **Shareable URLs**: Easily share a check with others via `?d=domain.com` links.
 - **Light & Dark Mode**: A sleek, flat UI that respects your operating system preferences with manual override.
-
----
 
 ## The Scoring System
 
@@ -40,8 +36,6 @@ Domains are evaluated out of **100 points**, broken down as follows:
 - `✅ Ready` (80% - 100%)
 - `⚠️ Partial` (40% - 79%)
 - `❌ Not Ready` (0% - 39%)
-
----
 
 ## Usage Guide
 
@@ -77,22 +71,33 @@ The generated CSV will contain the following columns:
 - `IPv4 Addresses` (Semicolon separated)
 - `Error` (e.g., NXDOMAIN, SERVFAIL)
 
----
-
 ## Local Development
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (v18 or higher recommended)
+To run this project locally, you must install **Node.js** (which includes `npm`, the Node Package Manager) and **Git**.
+
+1. **Install Git:** Download and install from [git-scm.com](https://git-scm.com/).
+2. **Install Node.js (v18+ recommended):**
+   - **Windows / Mac:** Download the official installer from the [Node.js website](https://nodejs.org/). Run the installer and follow the standard prompts.
+   - **Linux:** We recommend using Node Version Manager (nvm). Run:
+     ```bash
+     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+     nvm install 20
+     nvm use 20
+     ```
+   To verify your installation, open a terminal and run `node -v` and `npm -v`.
 
 ### Installation
 
 1. **Clone the repository:**
+   Download the code to your local machine using Git.
    ```bash
-   git clone https://github.com/yourusername/ipv6checker.git
+   git clone https://github.com/aryanarora06/ipv6checker.git
    cd ipv6checker
    ```
 
-2. **Install dependencies:**
+2. **Install all project requirements:**
+   Run the following command to automatically download and install all required libraries (React, Vite, fonts, etc.) from the `package.json` file.
    ```bash
    npm install
    ```
@@ -116,8 +121,6 @@ The static files will be generated in the `dist/` directory. You can host this d
 - **Vite** (Build tool, HMR)
 - **Vanilla CSS** (Custom properties, responsive grid/flexbox)
 - **@fontsource** (Self-hosted fonts: JetBrains Mono and Inter)
-
----
 
 ## License
 This project is open-source and available under the MIT License.
