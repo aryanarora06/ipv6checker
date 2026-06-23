@@ -745,6 +745,14 @@
   font-weight: 500;
 }
 
+.download-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
 .btn-download {
   display: inline-flex;
   align-items: center;
@@ -996,6 +1004,83 @@
 .history-ago {
   font-size: 0.72rem;
   color: var(--text-dim);
+}
+
+/* ── Breakdown ── */
+.breakdown-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 24px;
+  background: var(--bg-hover);
+  border-bottom: 1px solid var(--border);
+  animation: fadeIn 0.3s ease;
+}
+
+.breakdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.82rem;
+}
+
+.breakdown-points {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  width: 32px;
+  text-align: right;
+}
+
+.points-green { color: var(--green); }
+.points-red { color: var(--red); }
+.points-gray { color: var(--text-dim); }
+
+.breakdown-text {
+  color: var(--text-secondary);
+}
+
+/* ── Subdomains ── */
+.subdomains-section {
+  padding: 24px;
+}
+
+.subdomains-loading, .subdomains-na {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.subdomains-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.subdomain-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+}
+
+.subdomain-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.subdomain-badges {
+  display: flex;
+  gap: 6px;
+}
+
+.tag-missing {
+  background: var(--bg-hover);
+  color: var(--text-dim);
+  border-color: var(--border);
 }
 
 /* ── Light theme overrides ── */
