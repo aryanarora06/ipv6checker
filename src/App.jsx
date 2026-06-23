@@ -674,7 +674,7 @@ function App() {
                 <li>URLs are accepted — protocols, paths, and ports are stripped automatically.</li>
                 <li>Lines starting with <code>#</code> are treated as comments and ignored.</li>
                 <li>Duplicate domains are removed before processing.</li>
-                <li>Results are exported as a <strong>CSV file</strong> with score, verdict, and all DNS records.</li>
+                <li>Results can be exported as <strong>CSV, JSON, or PDF</strong> with full scoring and conclusions.</li>
               </ul>
               <div className="bulk-example">
                 <span className="bulk-example-label">Example file</span>

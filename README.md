@@ -13,8 +13,10 @@ Because it operates **100% client-side**, all queries are executed directly from
 ## Features
 
 - **Single Domain Lookup**: Get an instant readiness score (0-100) based on AAAA records.
+- **Interactive Scoring Breakdown**: Click to reveal exactly how your readiness score was calculated point-by-point.
 - **Deep DNS Inspection**: Automatically discovers and checks all Mail servers (MX) and Name servers (NS) for IPv6 support.
-- **Bulk Processing**: Upload a text file to check hundreds of domains at once and export the results.
+- **Common Subdomain Scanner**: Automatically discovers and checks common subdomains (`www`, `mail`, `api`, `cdn`) in the background.
+- **Bulk Processing & Export**: Upload a text file to check hundreds of domains at once and export the results as CSV, JSON, or PDF, complete with an AI-like conclusion for each domain.
 - **WHOIS & Registration Info**: Connects to the RDAP protocol to fetch domain registration dates and registrar information.
 - **Local History**: Your recent lookups are saved in your browser's `localStorage` for quick access.
 - **Shareable URLs**: Easily share a check with others via `?d=domain.com` links.
@@ -54,13 +56,14 @@ If you have a large list of domains to verify, you can upload them in bulk.
 3. *Optional*: Use `#` at the start of a line to leave a comment. Duplicates are automatically removed.
 4. Click **Choose File** and select your list.
 5. Click **Run**. The app will process the domains in small batches to respect DNS API rate limits.
-6. Once finished, click **Download CSV** to export the results.
+6. Once finished, choose to export your results as **CSV**, **JSON**, or **PDF**.
 
-#### Exported CSV Format
-The generated CSV will contain the following columns:
+#### Exported Format (Data Points)
+The generated exports will contain the following data for each domain:
 - `Domain`
 - `Score` (0-100)
 - `Verdict` (Ready, Partial, Not Ready)
+- `Conclusion` (A one-line summary of the domain's state)
 - `IPv6` (Yes/No)
 - `IPv4` (Yes/No)
 - `Dual Stack` (Yes/No)
