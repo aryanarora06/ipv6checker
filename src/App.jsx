@@ -264,7 +264,7 @@ function clearHistoryStore() { localStorage.removeItem(HISTORY_KEY); }
 
 /* ── Theme ── */
 const THEME_KEY = 'ipv6checker_theme';
-function getInitialTheme() { try { const s = localStorage.getItem(THEME_KEY); if (s === 'light' || s === 'dark') return s; } catch {} return 'dark'; }
+function getInitialTheme() { try { const s = localStorage.getItem(THEME_KEY); if (s === 'light' || s === 'dark') return s; } catch { /* ignore */ } return 'dark'; }
 
 /* ── Time ago ── */
 function formatAgo(ts) {
@@ -287,7 +287,7 @@ function formatDate(iso) {
    ──────────────────────────── */
 function CopyBtn({ text }) {
   const [ok, setOk] = useState(false);
-  const click = async () => { try { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1200); } catch {} };
+  const click = async () => { try { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1200); } catch { /* ignore */ } };
   return <button className="copy-btn" onClick={click} title="Copy">{ok ? Icon.check : Icon.copy}</button>;
 }
 
@@ -373,12 +373,6 @@ function App() {
 
   useEffect(() => { if (result && resultRef.current) resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, [result]);
 
-  /* ?d= param */
-  useEffect(() => {
-    const d = new URLSearchParams(window.location.search).get('d');
-    if (d) { const t = cleanDomain(d); if (isValidDomain(t)) { setDomain(t); setTimeout(() => runCheck(t), 100); } }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   /* ── Core check ── */
   const runCheck = useCallback(async (target) => {
     setLoading(true);
@@ -404,6 +398,20 @@ function App() {
     }
   }, []);
 
+  /* ?d= param */
+  useEffect(() => {
+    const d = new URLSearchParams(window.location.search).get('d');
+    if (d) {
+      const t = cleanDomain(d);
+      if (isValidDomain(t)) {
+        setTimeout(() => {
+          setDomain(t);
+          runCheck(t);
+        }, 100);
+      }
+    }
+  }, [runCheck]);
+
   const handleCheck = async (e) => {
     e.preventDefault();
     const raw = domain.trim();
@@ -426,7 +434,7 @@ function App() {
   const handleShare = async () => {
     if (!result) return;
     const url = `${window.location.origin}${window.location.pathname}?d=${encodeURIComponent(result.domain)}`;
-    try { await navigator.clipboard.writeText(url); setShareCopied(true); setTimeout(() => setShareCopied(false), 1500); } catch {}
+    try { await navigator.clipboard.writeText(url); setShareCopied(true); setTimeout(() => setShareCopied(false), 1500); } catch { /* ignore */ }
   };
 
   /* ── Bulk ── */
