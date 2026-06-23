@@ -1,0 +1,123 @@
+# ipv6checker
+
+A fast, client-side, browser-based tool to check the IPv6 readiness of any domain. Built with React and Vite.
+
+![ipv6checker UI](https://img.shields.io/badge/UI-Clean%20%26%20Flat-e11d48) ![Client-side](https://img.shields.io/badge/Privacy-100%25%20Client--Side-22c55e)
+
+## Overview
+
+`ipv6checker` allows users to quickly verify if a website, its mail servers, and its name servers are ready for the modern IPv6 internet. 
+
+Because it operates **100% client-side**, all queries are executed directly from the user's browser using Google's DNS-over-HTTPS API (`dns.google`). This means no backend servers are required, your queries remain private, and the tool can be hosted cheaply as a static site on platforms like GitHub Pages, Vercel, or Netlify.
+
+---
+
+## Features
+
+- **Single Domain Lookup**: Get an instant readiness score (0-100) based on AAAA records.
+- **Deep DNS Inspection**: Automatically discovers and checks all Mail servers (MX) and Name servers (NS) for IPv6 support.
+- **Bulk Processing**: Upload a text file to check hundreds of domains at once and export the results.
+- **WHOIS & Registration Info**: Connects to the RDAP protocol to fetch domain registration dates and registrar information.
+- **Local History**: Your recent lookups are saved in your browser's `localStorage` for quick access.
+- **Shareable URLs**: Easily share a check with others via `?d=domain.com` links.
+- **Light & Dark Mode**: A sleek, flat UI that respects your operating system preferences with manual override.
+
+---
+
+## The Scoring System
+
+Domains are evaluated out of **100 points**, broken down as follows:
+
+- **+40 points**: The main domain has at least one IPv6 (AAAA) record.
+- **+10 points**: The domain is Dual-Stack (has both IPv4 and IPv6).
+- **+5 points**: The domain has redundant IPv6 addresses (2 or more).
+- **+20 points**: The domain's Mail Exchange (MX) servers support IPv6. *(If the domain has no MX records, it automatically receives these points).*
+- **+15 points**: The domain's Name Servers (NS) support IPv6.
+- **+5 points**: *All* of the domain's MX servers support IPv6.
+- **+5 points**: *All* of the domain's NS servers support IPv6.
+
+**Verdicts:**
+- `✅ Ready` (80% - 100%)
+- `⚠️ Partial` (40% - 79%)
+- `❌ Not Ready` (0% - 39%)
+
+---
+
+## Usage Guide
+
+### Single Domain Check
+1. Open the application.
+2. Enter a domain name in the search bar (e.g., `google.com`).
+   - *Note: URLs like `https://github.com/about` will be automatically stripped down to `github.com`.*
+3. Press **Enter** or click **Check**. 
+4. The result card will display the verdict, the exact DNS records found, latency, and domain registration info.
+5. Click **Share** to copy a direct link to this result.
+
+### Bulk Domain Check
+If you have a large list of domains to verify, you can upload them in bulk.
+1. Create a `.txt` or `.csv` file.
+2. Place **one domain per line**.
+3. *Optional*: Use `#` at the start of a line to leave a comment. Duplicates are automatically removed.
+4. Click **Choose File** and select your list.
+5. Click **Run**. The app will process the domains in small batches to respect DNS API rate limits.
+6. Once finished, click **Download CSV** to export the results.
+
+#### Exported CSV Format
+The generated CSV will contain the following columns:
+- `Domain`
+- `Score` (0-100)
+- `Verdict` (Ready, Partial, Not Ready)
+- `IPv6` (Yes/No)
+- `IPv4` (Yes/No)
+- `Dual Stack` (Yes/No)
+- `MX IPv6` (Yes/No/N/A)
+- `NS IPv6` (Yes/No)
+- `Latency (ms)`
+- `IPv6 Addresses` (Semicolon separated)
+- `IPv4 Addresses` (Semicolon separated)
+- `Error` (e.g., NXDOMAIN, SERVFAIL)
+
+---
+
+## Local Development
+
+### Prerequisites
+- [Node.js](https://nodejs.org/) (v18 or higher recommended)
+
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/yourusername/ipv6checker.git
+   cd ipv6checker
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Start the development server:**
+   ```bash
+   npm run dev
+   ```
+   *The app will be available at `http://localhost:5173`.*
+
+### Building for Production
+
+To create an optimized production build:
+```bash
+npm run build
+```
+The static files will be generated in the `dist/` directory. You can host this directory on any static web host.
+
+### Built With
+- **React** (Hooks, state management)
+- **Vite** (Build tool, HMR)
+- **Vanilla CSS** (Custom properties, responsive grid/flexbox)
+- **@fontsource** (Self-hosted fonts: JetBrains Mono and Inter)
+
+---
+
+## License
+This project is open-source and available under the MIT License.
