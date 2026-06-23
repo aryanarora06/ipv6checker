@@ -74,9 +74,9 @@ The generated CSV will contain the following columns:
 ## Local Development
 
 ### Prerequisites
-To run this project locally, you must install **Node.js** (which includes `npm`, the Node Package Manager) and **Git**.
+To run this project locally, you must install **Node.js** (which includes `npm`, the Node Package Manager) and **GitHub CLI**.
 
-1. **Install Git:** Download and install from [git-scm.com](https://git-scm.com/).
+1. **Install GitHub CLI:** Download and install from [cli.github.com](https://cli.github.com/).
 2. **Install Node.js (v18+ recommended):**
    - **Windows / Mac:** Download the official installer from the [Node.js website](https://nodejs.org/). Run the installer and follow the standard prompts.
    - **Linux:** We recommend using Node Version Manager (nvm). Run:
@@ -90,9 +90,9 @@ To run this project locally, you must install **Node.js** (which includes `npm`,
 ### Installation
 
 1. **Clone the repository:**
-   Download the code to your local machine using Git.
+   Download the code to your local machine using GitHub.
    ```bash
-   git clone https://github.com/aryanarora06/ipv6checker.git
+   gh repo clone aryanarora06/ipv6checker
    cd ipv6checker
    ```
 
