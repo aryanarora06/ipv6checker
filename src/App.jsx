@@ -719,7 +719,10 @@ function App() {
             <div className="result-head">
               <div>
                 <p className={`verdict ${verdict.cls}`}>{verdict.text}</p>
-                <p className="result-domain">{result.domain}</p>
+                <div className="result-domain-wrap">
+                  <img src={`https://www.google.com/s2/favicons?domain=${result.domain}&sz=64`} alt="" className="domain-favicon" />
+                  <p className="result-domain">{result.domain}</p>
+                </div>
               </div>
               <div className="result-head-right">
                 <ScoreBar score={result.score} />
@@ -860,7 +863,7 @@ function App() {
       )}
 
       {/* History */}
-      {history.length > 0 && !result && (
+      {history.length > 0 && (
         <section className="history-section">
           <div className="history-card">
             <div className="history-header">
@@ -873,7 +876,10 @@ function App() {
                 const label = h.score >= 80 ? 'Ready' : h.score >= 40 ? 'Partial' : 'Not Ready';
                 return (
                   <button key={i} className="history-item" onClick={() => handleHistoryClick(h.domain)}>
-                    <span className="history-domain">{h.domain}</span>
+                    <div className="history-domain-wrap">
+                      <img src={`https://www.google.com/s2/favicons?domain=${h.domain}&sz=64`} alt="" className="history-favicon" />
+                      <span className="history-domain">{h.domain}</span>
+                    </div>
                     <span className="history-meta">
                       <span className={`history-verdict ${cls}`}>{label}</span>
                       <span className="history-score">{h.score}%</span>

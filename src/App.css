@@ -44,7 +44,7 @@
   font-weight: 600;
   padding: 4px 10px;
   font-family: inherit;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .client-test.checking {
@@ -104,7 +104,7 @@
   border: 1px solid var(--border);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  transition: color 0.15s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s cubic-bezier(0.22, 1, 0.36, 1), background 0.15s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .theme-toggle:hover {
@@ -175,7 +175,7 @@
   gap: 0;
   border: 1px solid var(--border);
   background: var(--bg-surface);
-  transition: border-color 0.2s ease;
+  transition: border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .search:focus-within {
@@ -225,7 +225,7 @@
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.2s ease, opacity 0.2s ease;
+  transition: background 0.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -262,7 +262,7 @@
   border-left: 3px solid var(--red);
   color: #fca5a5;
   font-size: 0.88rem;
-  animation: fadeIn 0.25s ease;
+  animation: fadeIn 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .alert-icon {
@@ -324,6 +324,18 @@
 .v-green { color: var(--green); }
 .v-amber { color: var(--amber); }
 .v-red   { color: var(--red); }
+
+.result-domain-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.domain-favicon {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+}
 
 .result-domain {
   font-family: 'JetBrains Mono', monospace;
@@ -458,7 +470,7 @@
   padding: 10px 12px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  transition: background 0.15s ease;
+  transition: background 0.15s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .record:hover {
@@ -483,7 +495,7 @@
   border: 1px solid var(--border);
   color: var(--text-dim);
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: color 0.15s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .copy-btn:hover {
@@ -568,7 +580,7 @@
   background: var(--bg-surface);
   border: 1px solid var(--border);
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .btn-file:hover {
@@ -611,7 +623,7 @@
   border: none;
   color: var(--text-dim);
   cursor: pointer;
-  transition: color 0.15s ease;
+  transition: color 0.15s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .btn-clear:hover {
@@ -701,7 +713,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  animation: fadeIn 0.25s ease;
+  animation: fadeIn 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .progress-track {
@@ -714,7 +726,7 @@
 .progress-fill {
   height: 100%;
   background: var(--red);
-  transition: width 0.3s ease;
+  transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .progress-text {
@@ -732,7 +744,7 @@
   padding: 16px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  animation: fadeIn 0.3s ease;
+  animation: fadeIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   flex-wrap: wrap;
 }
 
@@ -765,7 +777,7 @@
   background: var(--red);
   border: none;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s cubic-bezier(0.22, 1, 0.36, 1);
   margin-left: auto;
 }
 
@@ -794,7 +806,7 @@
   background: transparent;
   border: 1px solid var(--border);
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: color 0.15s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .btn-share:hover {
@@ -902,7 +914,7 @@
 /* ── History ── */
 .history-section {
   padding: 0 24px 48px;
-  animation: fadeIn 0.3s ease;
+  animation: fadeIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .history-card {
@@ -942,7 +954,7 @@
   background: transparent;
   border: 1px solid var(--border);
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: color 0.15s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .btn-clear-history:hover {
@@ -968,7 +980,7 @@
   color: var(--text);
   cursor: pointer;
   text-align: left;
-  transition: background 0.15s ease;
+  transition: background 0.15s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .history-item:last-child {
@@ -977,6 +989,18 @@
 
 .history-item:hover {
   background: var(--bg-hover);
+}
+
+.history-domain-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-favicon {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
 }
 
 .history-domain {
@@ -1007,6 +1031,11 @@
 }
 
 /* ── Breakdown ── */
+@keyframes slideDownFade {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .breakdown-section {
   display: flex;
   flex-direction: column;
@@ -1014,7 +1043,8 @@
   padding: 16px 24px;
   background: var(--bg-hover);
   border-bottom: 1px solid var(--border);
-  animation: fadeIn 0.3s ease;
+  animation: slideDownFade 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: top center;
 }
 
 .breakdown-item {
@@ -1103,12 +1133,10 @@
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 6px;
-  transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
 .security-card:hover {
   border-color: var(--text-dim);
-  transform: translateY(-2px);
 }
 
 .security-label {
