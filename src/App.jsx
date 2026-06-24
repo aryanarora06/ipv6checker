@@ -113,8 +113,8 @@ async function hasAAAA(hostname) {
 async function lookupDomain(target) {
   const t0 = performance.now();
 
-  /* Phase 1: A, AAAA, MX, NS, DNSKEY, TXT (root), TXT (_dmarc) in parallel */
-  const [dataAAAA, dataA, dataMX, dataNS, dataDNSKEY, dataTXT, dataDMARC] = await Promise.all([
+  /* Phase 1: A, AAAA, MX, NS, DNSKEY, TXT (root), TXT (_dmarc), and CNAMEs in parallel */
+  const [dataAAAA, dataA, dataMX, dataNS, dataDNSKEY, dataTXT, dataDMARC, dataCNAME, dataWwwCNAME] = await Promise.all([
     dohQuery(target, 'AAAA'),
     dohQuery(target, 'A'),
     dohQuery(target, 'MX'),
@@ -122,6 +122,8 @@ async function lookupDomain(target) {
     dohQuery(target, 'DNSKEY'),
     dohQuery(target, 'TXT'),
     dohQuery(`_dmarc.${target}`, 'TXT'),
+    dohQuery(target, 'CNAME'),
+    dohQuery(`www.${target}`, 'CNAME')
   ]);
 
   if (dataAAAA.Status === 3 && dataA.Status === 3) return { domain: target, error: 'NXDOMAIN' };
@@ -159,6 +161,36 @@ async function lookupDomain(target) {
   const hasSPF = (dataTXT.Answer || []).some(a => a.type === 16 && a.data.includes('v=spf1'));
   const hasDMARC = (dataDMARC.Answer || []).some(a => a.type === 16 && a.data.includes('v=DMARC1'));
 
+  /* ── Cloud Intelligence ── */
+  let hosting = null;
+  let dnsProvider = null;
+  
+  const nsStr = nsHosts.join(' ');
+  if (nsStr.includes('cloudflare.com')) dnsProvider = 'Cloudflare';
+  else if (nsStr.includes('awsdns')) dnsProvider = 'AWS Route53';
+  else if (nsStr.includes('vercel-dns')) dnsProvider = 'Vercel';
+  else if (nsStr.includes('googledomains')) dnsProvider = 'Google Domains';
+  else if (nsStr.includes('namecheap')) dnsProvider = 'Namecheap';
+  else if (nsStr.includes('domaincontrol.com')) dnsProvider = 'GoDaddy';
+  else if (nsStr.includes('digitalocean.com')) dnsProvider = 'DigitalOcean';
+
+  const cnames = [
+    ...(dataCNAME.Answer || []).map(a => a.data.toLowerCase()),
+    ...(dataWwwCNAME.Answer || []).map(a => a.data.toLowerCase())
+  ];
+  
+  const cnameStr = cnames.join(' ');
+  const ipStr = ipv4.map(i => i.ip).join(' ');
+
+  if (cnameStr.includes('github.io') || ipStr.includes('185.199.108')) hosting = 'GitHub Pages';
+  else if (cnameStr.includes('vercel-dns') || ipStr.includes('76.76.21.21')) hosting = 'Vercel';
+  else if (cnameStr.includes('myshopify.com') || ipStr.includes('23.227.38')) hosting = 'Shopify';
+  else if (cnameStr.includes('netlify.app')) hosting = 'Netlify';
+  else if (cnameStr.includes('herokudns.com') || cnameStr.includes('herokuapp.com')) hosting = 'Heroku';
+  else if (cnameStr.includes('amazonaws.com') || cnameStr.includes('cloudfront.net')) hosting = 'AWS';
+  else if (cnameStr.includes('fastly.net')) hosting = 'Fastly';
+  else if (dnsProvider === 'Cloudflare' && !hosting) hosting = 'Cloudflare (Proxy)';
+
   /* Scoring: 100 total */
   let score = 0;
   const breakdown = [];
@@ -169,7 +201,7 @@ async function lookupDomain(target) {
   if (ipv4.length > 0 && ipv6.length > 0) { score += 10; breakdown.push({ text: 'Dual-stack configuration', points: '+10', color: 'green' }); }
   else if (ipv4.length > 0) { breakdown.push({ text: 'IPv4 only (No dual-stack bonus)', points: '0', color: 'red' }); }
 
-  if (ipv6.length >= 2) { score += 5; breakdown.push({ text: 'IPv6 redundancy (≥2 IPs)', points: '+5', color: 'green' }); }
+  if (ipv6.length >= 2) { score += 5; breakdown.push({ text: 'IPv6 redundancy (2+ IPs)', points: '+5', color: 'green' }); }
 
   if (mxHosts.length === 0) { score += 20; breakdown.push({ text: 'No MX servers (skipping)', points: '+20', color: 'gray' }); }
   else if (mxHasIPv6) { score += 20; breakdown.push({ text: 'Mail server (MX) has IPv6', points: '+20', color: 'green' }); }
@@ -202,6 +234,8 @@ async function lookupDomain(target) {
     hasDNSSEC,
     hasSPF,
     hasDMARC,
+    hosting,
+    dnsProvider,
     error: null,
   };
 }
@@ -258,13 +292,14 @@ function getConclusion(r) {
 
 /* ── CSV, JSON, PDF ── */
 function generateCSV(results) {
-  const header = 'Domain,Score,Verdict,Conclusion,IPv6,IPv4,Dual Stack,MX IPv6,NS IPv6,DNSSEC,SPF,DMARC,Latency (ms),IPv6 Addresses,IPv4 Addresses,MX Hosts,NS Hosts,Error';
+  const header = 'Domain,Score,Verdict,Conclusion,Hosting Provider,DNS Provider,IPv6,IPv4,Dual Stack,MX IPv6,NS IPv6,DNSSEC,SPF,DMARC,Latency (ms),IPv6 Addresses,IPv4 Addresses,MX Hosts,NS Hosts,Error';
   const rows = results.map(r => {
-    if (r.error) return `${r.domain},,,,,,,,,,,,,,,,,"${r.error}"`;
+    if (r.error) return `${r.domain},,,,,,,,,,,,,,,,,,,"${r.error}"`;
     const verdict = r.score >= 80 ? 'Ready' : r.score >= 40 ? 'Partial' : 'Not Ready';
     const conclusion = getConclusion(r);
     return [
       r.domain, r.score, verdict, `"${conclusion}"`,
+      `"${r.hosting || 'Unknown'}"`, `"${r.dnsProvider || 'Unknown'}"`,
       r.hasIPv6 ? 'Yes' : 'No',
       r.hasIPv4 ? 'Yes' : 'No',
       r.hasIPv4 && r.hasIPv6 ? 'Yes' : 'No',
@@ -292,6 +327,8 @@ function generateJSON(results) {
       score: r.score,
       verdict: r.score >= 80 ? 'Ready' : r.score >= 40 ? 'Partial' : 'Not Ready',
       conclusion: getConclusion(r),
+      hostingProvider: r.hosting || 'Unknown',
+      dnsProvider: r.dnsProvider || 'Unknown',
       hasIPv6: r.hasIPv6,
       hasIPv4: r.hasIPv4,
       dualStack: !!(r.hasIPv4 && r.hasIPv6),
@@ -362,6 +399,7 @@ function generatePDF(results) {
     srvBody.push(['IPv4 (A)', r.hasIPv4 ? `${r.ipv4.length} records` : 'Missing', '']);
     srvBody.push(['MX Servers', r.hasMX ? `${r.mx.length} configured` : 'None', r.hasMX ? (r.mxHasIPv6 ? 'IPv6 Supported' : 'IPv4 Only') : '-']);
     srvBody.push(['NS Servers', r.hasNS ? `${r.ns.length} found` : 'None', r.hasNS ? (r.nsHasIPv6 ? 'IPv6 Supported' : 'IPv4 Only') : '-']);
+    srvBody.push(['Infrastructure', r.hosting || 'Custom/Unknown', r.dnsProvider || 'Custom DNS']);
     srvBody.push(['Security', 'DNSSEC / SPF / DMARC', `${r.hasDNSSEC ? 'Y' : 'N'} / ${r.hasSPF ? 'Y' : 'N'} / ${r.hasDMARC ? 'Y' : 'N'}`]);
 
     autoTable(doc, {
@@ -399,6 +437,8 @@ function generateSinglePDF(r) {
       ['IPv6 (AAAA) Records', r.hasIPv6 ? `${r.ipv6.length} found` : 'Missing'],
       ['IPv4 (A) Records', r.hasIPv4 ? `${r.ipv4.length} found` : 'Missing'],
       ['Dual-stack', (r.hasIPv4 && r.hasIPv6) ? 'Yes' : 'No'],
+      ['Hosting Provider', r.hosting || 'Unknown'],
+      ['DNS Provider', r.dnsProvider || 'Unknown'],
       ['Mail Servers (MX)', !r.hasMX ? 'None configured' : r.mxHasIPv6 ? 'IPv6 Ready' : 'IPv4 Only'],
       ['Name Servers (NS)', !r.hasNS ? 'None found' : r.nsHasIPv6 ? 'IPv6 Ready' : 'IPv4 Only'],
       ['DNSSEC', r.hasDNSSEC ? 'Enabled' : 'Missing'],
@@ -566,7 +606,7 @@ function IpRecord({ rec }) {
       <code>{rec.ip}</code>
       <div className="record-right">
         {asn && <span className="record-asn" title={asn}>{asn}</span>}
-        <span className="record-ttl">TTL {rec.ttl}s</span>
+        <span className="record-ttl" title="Remaining time in the DNS resolver's cache. This counts down automatically until the record is refreshed from the authoritative nameserver.">TTL {rec.ttl}s (cached)</span>
         <CopyBtn text={rec.ip} />
       </div>
     </div>
@@ -607,15 +647,16 @@ function ClientConnectionTest() {
 }
 
 /* ── Domain Screenshot ── */
-function DomainScreenshot({ domain }) {
+function DomainScreenshot({ url }) {
   const [imgSrc, setImgSrc] = useState(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
+    const targetUrl = url.startsWith('http') ? url : `https://${url}`;
     
-    fetch(`https://api.microlink.io?url=https://${domain}&screenshot=true&meta=false`)
+    fetch(`https://api.microlink.io?url=${encodeURIComponent(targetUrl)}&screenshot=true&meta=false`)
       .then(res => res.json())
       .then(data => {
         if (!active) return;
@@ -630,7 +671,7 @@ function DomainScreenshot({ domain }) {
       });
       
     return () => { active = false; };
-  }, [domain]);
+  }, [url]);
 
   if (error) return null;
 
@@ -641,7 +682,7 @@ function DomainScreenshot({ domain }) {
         <img
           src={imgSrc}
           className={`domain-screenshot ${loading ? 'loading' : ''}`}
-          alt={`Screenshot of ${domain}`}
+          alt={`Screenshot of ${url}`}
           onLoad={() => setLoading(false)}
           onError={() => setError(true)}
         />
@@ -687,7 +728,7 @@ function App() {
   useEffect(() => { if (result && resultRef.current) resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, [result]);
 
   /* ── Core check ── */
-  const runCheck = useCallback(async (target) => {
+  const runCheck = useCallback(async (target, rawUrl = null) => {
     setLoading(true);
     setError('');
     setResult(null);
@@ -698,6 +739,7 @@ function App() {
       if (r.error === 'NXDOMAIN') { setError(`Domain "${target}" does not exist.`); }
       else if (r.error === 'SERVFAIL') { setError(`DNS server failed to resolve "${target}". Try again later.`); }
       else {
+        r.rawUrl = rawUrl || target;
         setResult(r);
         setHistory(saveToHistory({ domain: r.domain, score: r.score, hasIPv6: r.hasIPv6, timestamp: Date.now() }));
         /* Fetch WHOIS in background */
@@ -720,7 +762,7 @@ function App() {
       if (isValidDomain(t)) {
         setTimeout(() => {
           setDomain(t);
-          runCheck(t);
+          runCheck(t, d);
         }, 100);
       }
     }
@@ -733,7 +775,7 @@ function App() {
     const target = cleanDomain(raw);
     if (!isValidDomain(target)) { setError('Invalid domain. Try something like google.com'); return; }
     const url = new URL(window.location); url.searchParams.set('d', target); window.history.pushState({}, '', url);
-    await runCheck(target);
+    await runCheck(target, raw);
   };
 
   const handleHistoryClick = (d) => {
@@ -872,7 +914,7 @@ function App() {
           <div className="result-card">
             <div className={`result-stripe ${verdict.cls}`} />
 
-            <DomainScreenshot key={result.domain} domain={result.domain} />
+            <DomainScreenshot key={result.domain} url={result.rawUrl || result.domain} />
 
             {/* Head: verdict + score + share + latency */}
             <div className="result-head">
@@ -978,10 +1020,19 @@ function App() {
             {result.score < 100 && (() => {
               const steps = [];
               if (!result.hasIPv6) {
+                let dynamicAdvice = 'Ask your hosting provider if they support IPv6, then add AAAA records in your DNS zone. Most major providers (Cloudflare, AWS, GCP, Vercel, Netlify) support this out of the box.';
+                
+                if (result.hosting === 'Vercel') dynamicAdvice = "We detected you are hosted on Vercel. Vercel supports IPv6 natively. Ensure you don't have an A record hardcoded to 76.76.21.21 without also having the AAAA record, or switch to a CNAME.";
+                else if (result.hosting === 'GitHub Pages') dynamicAdvice = "We detected you are hosted on GitHub Pages. You just need to add the 4 GitHub IPv6 AAAA records (2606:50c0:8000::153, etc.) to your DNS provider.";
+                else if (result.hosting === 'Cloudflare (Proxy)') dynamicAdvice = "We detected you are using Cloudflare. Your IPv6 is failing because Cloudflare's IPv6 routing toggle might be disabled in your Network dashboard. Turn it on!";
+                else if (result.hosting === 'Shopify') dynamicAdvice = "We detected you are using Shopify. Shopify automatically provisions IPv6 for CNAME setups. Ensure your root domain uses an ALIAS or CNAME to shops.myshopify.com.";
+                else if (result.hosting) dynamicAdvice = `We detected you are using ${result.hosting}. Check their documentation on how to enable IPv6. You usually need to toggle it in their dashboard or update your DNS records.`;
+                else if (result.dnsProvider) dynamicAdvice = `We detected you are using ${result.dnsProvider} for DNS. You need to log into their dashboard and add an AAAA record pointing to your server's IPv6 address.`;
+
                 steps.push({
                   priority: 'Critical',
                   title: 'Add AAAA records to your root domain',
-                  desc: 'This is the single biggest factor. Ask your hosting provider if they support IPv6, then add AAAA records in your DNS zone. Most major providers (Cloudflare, AWS, GCP, Vercel, Netlify) support this out of the box.',
+                  desc: dynamicAdvice,
                   points: 40,
                 });
               }
