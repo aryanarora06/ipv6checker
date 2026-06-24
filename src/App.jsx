@@ -94,7 +94,7 @@ function isValidDomain(d) {
 }
 
 async function dohQuery(name, type) {
-  const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(name)}&type=${type}`);
+  const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(name)}&type=${type}`, { cache: 'no-store' });
   return res.json();
 }
 
@@ -127,8 +127,8 @@ async function lookupDomain(target) {
   if (dataAAAA.Status === 3 && dataA.Status === 3) return { domain: target, error: 'NXDOMAIN' };
   if (dataAAAA.Status === 2 && dataA.Status === 2) return { domain: target, error: 'SERVFAIL' };
 
-  const ipv6 = (dataAAAA.Answer || []).filter(a => a.type === 28).map(a => a.data);
-  const ipv4 = (dataA.Answer || []).filter(a => a.type === 1).map(a => a.data);
+  const ipv6 = (dataAAAA.Answer || []).filter(a => a.type === 28).map(a => ({ ip: a.data, ttl: a.TTL }));
+  const ipv4 = (dataA.Answer || []).filter(a => a.type === 1).map(a => ({ ip: a.data, ttl: a.TTL }));
 
   /* Extract MX hostnames (type 15, data format: "10 mail.example.com.") */
   const mxHosts = (dataMX.Answer || [])
@@ -206,30 +206,6 @@ async function lookupDomain(target) {
   };
 }
 
-/* ── Subdomain Scanner ── */
-async function scanSubdomains(root) {
-  const common = ['www', 'mail', 'api', 'cdn'];
-  const results = [];
-  
-  for (const sub of common) {
-    const fqdn = `${sub}.${root}`;
-    try {
-      const ipv6Req = fetch(`https://dns.google/resolve?name=${fqdn}&type=AAAA`).then(r => r.json());
-      const ipv4Req = fetch(`https://dns.google/resolve?name=${fqdn}&type=A`).then(r => r.json());
-      
-      const [v6, v4] = await Promise.all([ipv6Req, ipv4Req]);
-      const hasIPv6 = v6.Answer && v6.Answer.some(a => a.type === 28);
-      const hasIPv4 = v4.Answer && v4.Answer.some(a => a.type === 1);
-      
-      // If either resolves successfully and has records
-      if ((v6.Status === 0 && hasIPv6) || (v4.Status === 0 && hasIPv4)) {
-        results.push({ domain: fqdn, hasIPv6: !!hasIPv6, hasIPv4: !!hasIPv4 });
-      }
-    } catch { /* ignore */ }
-  }
-  return results;
-}
-
 /* ── WHOIS via RDAP (async, non-blocking) ── */
 async function fetchWhois(domain) {
   try {
@@ -282,9 +258,9 @@ function getConclusion(r) {
 
 /* ── CSV, JSON, PDF ── */
 function generateCSV(results) {
-  const header = 'Domain,Score,Verdict,Conclusion,IPv6,IPv4,Dual Stack,MX IPv6,NS IPv6,Latency (ms),IPv6 Addresses,IPv4 Addresses,Error';
+  const header = 'Domain,Score,Verdict,Conclusion,IPv6,IPv4,Dual Stack,MX IPv6,NS IPv6,DNSSEC,SPF,DMARC,Latency (ms),IPv6 Addresses,IPv4 Addresses,MX Hosts,NS Hosts,Error';
   const rows = results.map(r => {
-    if (r.error) return `${r.domain},,,,,,,,,,,,"${r.error}"`;
+    if (r.error) return `${r.domain},,,,,,,,,,,,,,,,,"${r.error}"`;
     const verdict = r.score >= 80 ? 'Ready' : r.score >= 40 ? 'Partial' : 'Not Ready';
     const conclusion = getConclusion(r);
     return [
@@ -294,9 +270,14 @@ function generateCSV(results) {
       r.hasIPv4 && r.hasIPv6 ? 'Yes' : 'No',
       !r.hasMX ? 'N/A' : r.mxHasIPv6 ? 'Yes' : 'No',
       !r.hasNS ? 'N/A' : r.nsHasIPv6 ? 'Yes' : 'No',
+      r.hasDNSSEC ? 'Yes' : 'No',
+      r.hasSPF ? 'Yes' : 'No',
+      r.hasDMARC ? 'Yes' : 'No',
       r.latencyMs,
-      `"${r.ipv6.join('; ')}"`,
-      `"${r.ipv4.join('; ')}"`,
+      `"${r.ipv6.map(a => a.ip).join('; ')}"`,
+      `"${r.ipv4.map(a => a.ip).join('; ')}"`,
+      `"${r.mx.map(m => m.hostname).join('; ')}"`,
+      `"${r.ns.map(n => n.hostname).join('; ')}"`,
       '',
     ].join(',');
   });
@@ -316,9 +297,14 @@ function generateJSON(results) {
       dualStack: !!(r.hasIPv4 && r.hasIPv6),
       mxIPv6: !r.hasMX ? 'N/A' : r.mxHasIPv6,
       nsIPv6: !r.hasNS ? 'N/A' : r.nsHasIPv6,
+      hasDNSSEC: r.hasDNSSEC,
+      hasSPF: r.hasSPF,
+      hasDMARC: r.hasDMARC,
       latencyMs: r.latencyMs,
       ipv6Addresses: r.ipv6,
-      ipv4Addresses: r.ipv4
+      ipv4Addresses: r.ipv4,
+      mxServers: r.mx,
+      nsServers: r.ns
     };
   });
   return JSON.stringify(mapped, null, 2);
@@ -354,6 +340,105 @@ function generatePDF(results) {
       5: { cellWidth: 'auto' }
     }
   });
+
+  doc.addPage();
+  doc.setFontSize(14);
+  doc.text("Detailed Domain Summaries", 14, 15);
+  let currentY = 25;
+
+  results.filter(r => !r.error).forEach((r) => {
+    // Check if we need a new page
+    if (currentY > 250) {
+      doc.addPage();
+      currentY = 20;
+    }
+    
+    doc.setFontSize(12);
+    doc.text(`${r.domain} — Score: ${r.score}%`, 14, currentY);
+    currentY += 6;
+
+    const srvBody = [];
+    srvBody.push(['IPv6 (AAAA)', r.hasIPv6 ? `${r.ipv6.length} records` : 'Missing', '']);
+    srvBody.push(['IPv4 (A)', r.hasIPv4 ? `${r.ipv4.length} records` : 'Missing', '']);
+    srvBody.push(['MX Servers', r.hasMX ? `${r.mx.length} configured` : 'None', r.hasMX ? (r.mxHasIPv6 ? 'IPv6 Supported' : 'IPv4 Only') : '-']);
+    srvBody.push(['NS Servers', r.hasNS ? `${r.ns.length} found` : 'None', r.hasNS ? (r.nsHasIPv6 ? 'IPv6 Supported' : 'IPv4 Only') : '-']);
+    srvBody.push(['Security', 'DNSSEC / SPF / DMARC', `${r.hasDNSSEC ? 'Y' : 'N'} / ${r.hasSPF ? 'Y' : 'N'} / ${r.hasDMARC ? 'Y' : 'N'}`]);
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [['Resource', 'Details', 'Support / Config']],
+      body: srvBody,
+      headStyles: { fillColor: [79, 70, 229] },
+      styles: { fontSize: 8, cellPadding: 2 },
+      margin: { left: 14, right: 14 }
+    });
+    
+    currentY = doc.lastAutoTable.finalY + 12;
+  });
+
+  return doc;
+}
+
+function generateSinglePDF(r) {
+  const doc = new jsPDF();
+  doc.text(`IPv6 Readiness Report: ${r.domain}`, 14, 15);
+  doc.setFontSize(10);
+  doc.text(`Generated on ${new Date().toLocaleDateString()}`, 14, 22);
+
+  doc.setFontSize(14);
+  doc.text(`Score: ${r.score}% (${r.score >= 80 ? 'Ready' : r.score >= 40 ? 'Partial' : 'Not Ready'})`, 14, 35);
+  doc.setFontSize(11);
+  
+  const conclusion = getConclusion(r);
+  doc.text(`Conclusion: ${conclusion}`, 14, 45, { maxWidth: 180 });
+
+  autoTable(doc, {
+    startY: 55,
+    head: [['Configuration', 'Status']],
+    body: [
+      ['IPv6 (AAAA) Records', r.hasIPv6 ? `${r.ipv6.length} found` : 'Missing'],
+      ['IPv4 (A) Records', r.hasIPv4 ? `${r.ipv4.length} found` : 'Missing'],
+      ['Dual-stack', (r.hasIPv4 && r.hasIPv6) ? 'Yes' : 'No'],
+      ['Mail Servers (MX)', !r.hasMX ? 'None configured' : r.mxHasIPv6 ? 'IPv6 Ready' : 'IPv4 Only'],
+      ['Name Servers (NS)', !r.hasNS ? 'None found' : r.nsHasIPv6 ? 'IPv6 Ready' : 'IPv4 Only'],
+      ['DNSSEC', r.hasDNSSEC ? 'Enabled' : 'Missing'],
+      ['SPF', r.hasSPF ? 'Enabled' : 'Missing'],
+      ['DMARC', r.hasDMARC ? 'Enabled' : 'Missing']
+    ],
+    headStyles: { fillColor: [219, 39, 119] },
+  });
+
+  autoTable(doc, {
+    startY: doc.lastAutoTable.finalY + 10,
+    head: [['Score Breakdown', 'Points Awarded']],
+    body: r.breakdown.map(b => [b.text, b.points]),
+    headStyles: { fillColor: [79, 70, 229] },
+  });
+
+  const ipBody = [];
+  r.ipv6.forEach(rec => ipBody.push(['AAAA (IPv6)', rec.ip, `${rec.ttl}s`]));
+  r.ipv4.forEach(rec => ipBody.push(['A (IPv4)', rec.ip, `${rec.ttl}s`]));
+  if (ipBody.length > 0) {
+    autoTable(doc, {
+      startY: doc.lastAutoTable.finalY + 10,
+      head: [['DNS Record Type', 'IP Address', 'TTL']],
+      body: ipBody,
+      headStyles: { fillColor: [5, 150, 105] },
+    });
+  }
+
+  const srvBody = [];
+  r.mx.forEach(m => srvBody.push(['MX', m.hostname, m.priority, m.hasIPv6 ? 'IPv6 Supported' : 'IPv4 Only']));
+  r.ns.forEach(n => srvBody.push(['NS', n.hostname, '-', n.hasIPv6 ? 'IPv6 Supported' : 'IPv4 Only']));
+  if (srvBody.length > 0) {
+    autoTable(doc, {
+      startY: doc.lastAutoTable.finalY + 10,
+      head: [['Server Type', 'Hostname', 'Priority', 'Support']],
+      body: srvBody,
+      headStyles: { fillColor: [217, 119, 6] },
+    });
+  }
+
   return doc;
 }
 
@@ -371,10 +456,10 @@ function downloadFile(content, filename, type) {
 
 /* ── History ── */
 const HISTORY_KEY = 'ipv6checker_history';
-const MAX_HISTORY = 10;
+const MAX_HISTORY = 50;
 function loadHistory() { try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; } }
 function saveToHistory(entry) {
-  const history = loadHistory().filter(h => h.domain !== entry.domain);
+  const history = loadHistory().filter(h => entry.isBulk ? h.filename !== entry.filename : h.domain !== entry.domain);
   history.unshift(entry);
   if (history.length > MAX_HISTORY) history.length = MAX_HISTORY;
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
@@ -458,6 +543,36 @@ function ServerList({ title, items, badge }) {
   );
 }
 
+/* ── IP Record with ASN Lookup ── */
+function IpRecord({ rec }) {
+  const [asn, setAsn] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`https://api.techniknews.net/ipgeo/${rec.ip}`)
+      .then(r => r.json())
+      .then(d => {
+        if (active && d.status === 'success') {
+          // e.g. "AS15169 Google LLC"
+          setAsn(d.as || d.isp || 'Unknown ASN');
+        }
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [rec.ip]);
+
+  return (
+    <div className="record">
+      <code>{rec.ip}</code>
+      <div className="record-right">
+        {asn && <span className="record-asn" title={asn}>{asn}</span>}
+        <span className="record-ttl">TTL {rec.ttl}s</span>
+        <CopyBtn text={rec.ip} />
+      </div>
+    </div>
+  );
+}
+
 /* ── Client Connection Test ── */
 function ClientConnectionTest() {
   const [status, setStatus] = useState('checking'); // 'checking' | 'v6' | 'v4'
@@ -491,6 +606,50 @@ function ClientConnectionTest() {
   return <div className="client-test v4-only" title="Your internet service provider or router does not currently support IPv6.">You are on IPv4</div>;
 }
 
+/* ── Domain Screenshot ── */
+function DomainScreenshot({ domain }) {
+  const [imgSrc, setImgSrc] = useState(null);
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    
+    fetch(`https://api.microlink.io?url=https://${domain}&screenshot=true&meta=false`)
+      .then(res => res.json())
+      .then(data => {
+        if (!active) return;
+        if (data.status === 'success' && data.data?.screenshot?.url) {
+          setImgSrc(data.data.screenshot.url);
+        } else {
+          setError(true);
+        }
+      })
+      .catch(() => {
+        if (active) setError(true);
+      });
+      
+    return () => { active = false; };
+  }, [domain]);
+
+  if (error) return null;
+
+  return (
+    <div className="domain-screenshot-wrap">
+      {loading && <div className="screenshot-skeleton" />}
+      {imgSrc && (
+        <img
+          src={imgSrc}
+          className={`domain-screenshot ${loading ? 'loading' : ''}`}
+          alt={`Screenshot of ${domain}`}
+          onLoad={() => setLoading(false)}
+          onError={() => setError(true)}
+        />
+      )}
+    </div>
+  );
+}
+
 /* ════════════════════════════
    App
    ════════════════════════════ */
@@ -499,9 +658,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [whois, setWhois] = useState(null);
   const [whoisLoading, setWhoisLoading] = useState(false);
-  const [subdomains, setSubdomains] = useState(null);
-  const [subdomainsLoading, setSubdomainsLoading] = useState(false);
-  const [showBreakdown, setShowBreakdown] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const resultRef = useRef(null);
@@ -535,8 +692,6 @@ function App() {
     setError('');
     setResult(null);
     setWhois(null);
-    setSubdomains(null);
-    setShowBreakdown(false);
 
     try {
       const r = await lookupDomain(target);
@@ -548,9 +703,7 @@ function App() {
         /* Fetch WHOIS in background */
         setWhoisLoading(true);
         fetchWhois(target).then(w => { setWhois(w); setWhoisLoading(false); });
-        /* Scan subdomains in background */
-        setSubdomainsLoading(true);
-        scanSubdomains(target).then(s => { setSubdomains(s); setSubdomainsLoading(false); });
+
       }
     } catch {
       setError('Network error. Check your connection and try again.');
@@ -593,9 +746,7 @@ function App() {
 
   const [shareCopied, setShareCopied] = useState(false);
   const handleShare = async () => {
-    if (!result) return;
-    const url = `${window.location.origin}${window.location.pathname}?d=${encodeURIComponent(result.domain)}`;
-    try { await navigator.clipboard.writeText(url); setShareCopied(true); setTimeout(() => setShareCopied(false), 1500); } catch { /* ignore */ }
+    try { await navigator.clipboard.writeText(window.location.href); setShareCopied(true); setTimeout(() => setShareCopied(false), 1500); } catch { /* ignore */ }
   };
 
   /* ── Bulk ── */
@@ -622,12 +773,18 @@ function App() {
       }
       setBulkResults(results);
       setBulkDone(true);
+      setHistory(saveToHistory({ isBulk: true, filename: bulkFile.name, domain: `${domains.length} domains`, score: null, timestamp: Date.now() }));
     } catch { setError('Failed to read the file.'); } finally { setBulkLoading(false); }
   };
 
   const handleDownloadCSV = () => { if (!bulkResults) return; downloadFile(generateCSV(bulkResults), `ipv6checker-results-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv'); };
   const handleDownloadJSON = () => { if (!bulkResults) return; downloadFile(generateJSON(bulkResults), `ipv6checker-results-${new Date().toISOString().slice(0, 10)}.json`, 'application/json'); };
   const handleDownloadPDF = () => { if (!bulkResults) return; generatePDF(bulkResults).save(`ipv6checker-results-${new Date().toISOString().slice(0, 10)}.pdf`); };
+
+  const handleExportSinglePDF = () => {
+    if (!result) return;
+    generateSinglePDF(result).save(`${result.domain}-ipv6-report.pdf`);
+  };
 
   const verdict = result
     ? result.score >= 80 ? { text: 'Ready', cls: 'v-green' }
@@ -715,6 +872,8 @@ function App() {
           <div className="result-card">
             <div className={`result-stripe ${verdict.cls}`} />
 
+            <DomainScreenshot key={result.domain} domain={result.domain} />
+
             {/* Head: verdict + score + share + latency */}
             <div className="result-head">
               <div>
@@ -728,8 +887,8 @@ function App() {
                 <ScoreBar score={result.score} />
                 <div className="result-head-actions">
                   <span className="latency-badge">{Icon.clock} {result.latencyMs}ms</span>
-                  <button className="btn-share" onClick={() => setShowBreakdown(b => !b)}>
-                    {showBreakdown ? 'Hide Breakdown' : 'Score Breakdown'}
+                  <button className="btn-share" onClick={handleExportSinglePDF}>
+                    {Icon.download} Export
                   </button>
                   <button className="btn-share" onClick={handleShare}>
                     {shareCopied ? <>{Icon.check} Copied</> : <>{Icon.share} Share</>}
@@ -750,16 +909,14 @@ function App() {
               <CheckRow ok={result.nsHasIPv6} label="NS servers have IPv6" na={!result.hasNS} />
             </div>
 
-            {showBreakdown && (
-              <div className="breakdown-section">
-                {result.breakdown.map((b, i) => (
-                  <div key={i} className="breakdown-item">
-                    <span className={`breakdown-points points-${b.color}`}>{b.points}</span>
-                    <span className="breakdown-text">{b.text}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="breakdown-section">
+              {result.breakdown.map((b, i) => (
+                <div key={i} className="breakdown-item">
+                  <span className={`breakdown-points points-${b.color}`}>{b.points}</span>
+                  <span className="breakdown-text">{b.text}</span>
+                </div>
+              ))}
+            </div>
 
             <div className="divider" />
 
@@ -793,40 +950,18 @@ function App() {
 
             <div className="divider" />
 
-            {/* Subdomains */}
-            <div className="subdomains-section">
-              <p className="section-title">Common Subdomains</p>
-              {subdomainsLoading && <p className="subdomains-loading">Scanning subdomains…</p>}
-              {!subdomainsLoading && subdomains && subdomains.length === 0 && <p className="subdomains-na">No common subdomains found.</p>}
-              {!subdomainsLoading && subdomains && subdomains.length > 0 && (
-                <div className="subdomains-grid">
-                  {subdomains.map((sub, i) => (
-                    <div className="subdomain-card" key={i}>
-                      <span className="subdomain-name">{sub.domain}</span>
-                      <div className="subdomain-badges">
-                        {sub.hasIPv6 ? <span className="tag tag-v6">AAAA</span> : <span className="tag tag-missing">No IPv6</span>}
-                        {sub.hasIPv4 ? <span className="tag tag-v4">A</span> : <span className="tag tag-missing">No IPv4</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="divider" />
-
             {/* DNS Records */}
             <div className="records">
               {result.ipv6.length > 0 && (
                 <div className="record-group">
                   <div className="record-label"><span className="tag tag-v6">AAAA</span>{result.ipv6.length} record{result.ipv6.length !== 1 && 's'}</div>
-                  {result.ipv6.map((ip, i) => (<div className="record" key={i}><code>{ip}</code><CopyBtn text={ip} /></div>))}
+                  {result.ipv6.map((rec, i) => <IpRecord key={i} rec={rec} />)}
                 </div>
               )}
               {result.ipv4.length > 0 && (
                 <div className="record-group">
                   <div className="record-label"><span className="tag tag-v4">A</span>{result.ipv4.length} record{result.ipv4.length !== 1 && 's'}</div>
-                  {result.ipv4.map((ip, i) => (<div className="record" key={i}><code>{ip}</code><CopyBtn text={ip} /></div>))}
+                  {result.ipv4.map((rec, i) => <IpRecord key={i} rec={rec} />)}
                 </div>
               )}
 
@@ -839,9 +974,97 @@ function App() {
               {result.ipv6.length === 0 && result.ipv4.length === 0 && (<p className="no-records">No DNS records found for this domain.</p>)}
             </div>
 
-            {!result.hasIPv6 && (
-              <div className="rec-box">Add AAAA records to your DNS to enable IPv6. Contact your hosting provider or registrar.</div>
-            )}
+            {/* Next Steps to 100% */}
+            {result.score < 100 && (() => {
+              const steps = [];
+              if (!result.hasIPv6) {
+                steps.push({
+                  priority: 'Critical',
+                  title: 'Add AAAA records to your root domain',
+                  desc: 'This is the single biggest factor. Ask your hosting provider if they support IPv6, then add AAAA records in your DNS zone. Most major providers (Cloudflare, AWS, GCP, Vercel, Netlify) support this out of the box.',
+                  points: 40,
+                });
+              }
+              if (result.hasIPv4 && !result.hasIPv6) {
+                steps.push({
+                  priority: 'High',
+                  title: 'Enable dual-stack (IPv4 + IPv6)',
+                  desc: 'Keep your existing A records and add AAAA records alongside them. This ensures compatibility with both IPv4 and IPv6 clients during the transition period.',
+                  points: 10,
+                });
+              }
+              if (result.ipv6.length < 2) {
+                steps.push({
+                  priority: 'Low',
+                  title: 'Add IPv6 redundancy',
+                  desc: result.hasIPv6
+                    ? 'You only have one AAAA record. Add at least one more IPv6 address for redundancy — this protects against single-server failures.'
+                    : 'When adding AAAA records, configure at least two IPv6 addresses for redundancy and failover protection.',
+                  points: 5,
+                });
+              }
+              if (result.hasMX && !result.mxHasIPv6) {
+                steps.push({
+                  priority: 'High',
+                  title: 'Enable IPv6 on your mail servers (MX)',
+                  desc: 'Your MX records point to servers without AAAA records. Contact your email provider (e.g., Google Workspace, Microsoft 365, Zoho) to enable IPv6 delivery. Enabling it on all MX hosts earns a bonus.',
+                  points: 25,
+                });
+              }
+              if (result.hasMX && result.mxHasIPv6 && !result.mx.every(m => m.hasIPv6)) {
+                steps.push({
+                  priority: 'Medium',
+                  title: 'Add IPv6 to all MX servers',
+                  desc: 'Some of your mail servers still lack AAAA records. Ensure every MX host has IPv6 for full mail delivery coverage.',
+                  points: 5,
+                });
+              }
+              if (result.hasNS && !result.nsHasIPv6) {
+                steps.push({
+                  priority: 'High',
+                  title: 'Enable IPv6 on your name servers (NS)',
+                  desc: 'Your authoritative name servers don\'t have AAAA records. Switch to a DNS provider that supports IPv6 glue records (Cloudflare, Route 53, NS1, etc.). Enabling it on all NS hosts earns a bonus.',
+                  points: 20,
+                });
+              }
+              if (result.hasNS && result.nsHasIPv6 && !result.ns.every(n => n.hasIPv6)) {
+                steps.push({
+                  priority: 'Medium',
+                  title: 'Add IPv6 to all name servers',
+                  desc: 'Some NS hosts lack AAAA records. Ensure all authoritative name servers are reachable over IPv6.',
+                  points: 5,
+                });
+              }
+
+              steps.sort((a, b) => b.points - a.points);
+              if (steps.length === 0) return null;
+
+              const totalMissing = 100 - result.score;
+
+              return (
+                <>
+                  <div className="divider" />
+                  <div className="next-steps-section">
+                    <p className="section-title">
+                      Next Steps to 100%
+                      <span className="next-steps-gap">+{totalMissing} points needed</span>
+                    </p>
+                    <div className="next-steps-list">
+                      {steps.map((step, i) => (
+                        <div key={i} className="next-step-item">
+                          <div className="next-step-header">
+                            <span className={`next-step-priority priority-${step.priority.toLowerCase()}`}>{step.priority}</span>
+                            <span className="next-step-points">+{step.points} pts</span>
+                          </div>
+                          <p className="next-step-title">{step.title}</p>
+                          <p className="next-step-desc">{step.desc}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
 
             {/* WHOIS */}
             <div className="divider" />
@@ -872,17 +1095,18 @@ function App() {
             </div>
             <div className="history-list">
               {history.map((h, i) => {
-                const cls = h.score >= 80 ? 'v-green' : h.score >= 40 ? 'v-amber' : 'v-red';
-                const label = h.score >= 80 ? 'Ready' : h.score >= 40 ? 'Partial' : 'Not Ready';
+                const isBulk = h.isBulk;
+                const cls = isBulk ? 'v-gray' : h.score >= 80 ? 'v-green' : h.score >= 40 ? 'v-amber' : 'v-red';
+                const label = isBulk ? 'Bulk Check' : h.score >= 80 ? 'Ready' : h.score >= 40 ? 'Partial' : 'Not Ready';
                 return (
-                  <button key={i} className="history-item" onClick={() => handleHistoryClick(h.domain)}>
+                  <button key={i} className={`history-item ${isBulk ? 'history-item-bulk' : ''}`} onClick={() => !isBulk && handleHistoryClick(h.domain)} style={isBulk ? { cursor: 'default' } : {}}>
                     <div className="history-domain-wrap">
-                      <img src={`https://www.google.com/s2/favicons?domain=${h.domain}&sz=64`} alt="" className="history-favicon" />
-                      <span className="history-domain">{h.domain}</span>
+                      {isBulk ? <span className="history-file-icon">{Icon.file}</span> : <img src={`https://www.google.com/s2/favicons?domain=${h.domain}&sz=64`} alt="" className="history-favicon" />}
+                      <span className="history-domain">{isBulk ? h.filename : h.domain}</span>
                     </div>
                     <span className="history-meta">
                       <span className={`history-verdict ${cls}`}>{label}</span>
-                      <span className="history-score">{h.score}%</span>
+                      {isBulk ? <span className="history-score">{h.domain}</span> : <span className="history-score">{h.score}%</span>}
                       <span className="history-ago">{formatAgo(h.timestamp)}</span>
                     </span>
                   </button>
