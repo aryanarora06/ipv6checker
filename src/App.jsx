@@ -208,7 +208,7 @@ function DomainScreenshot({ url }) {
 }
 
 /* ── Server Reachability Test ── */
-function ReachabilityTest({ domain, hasIPv6 }) {
+function ReachabilityTest({ domain, hasIPv6, onComplete }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -221,12 +221,13 @@ function ReachabilityTest({ domain, hasIPv6 }) {
       if (!res.ok) throw new Error('API unavailable or error');
       const d = await res.json();
       setData(d);
+      if (onComplete) onComplete(d);
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [domain]);
+  }, [domain, onComplete]);
 
   useEffect(() => {
     if (hasIPv6) {
@@ -294,6 +295,8 @@ function App() {
   const [result, setResult] = useState(null);
   const [whois, setWhois] = useState(null);
   const [whoisLoading, setWhoisLoading] = useState(false);
+  const [reachabilityData, setReachabilityData] = useState(null);
+  const [subdomainData, setSubdomainData] = useState(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -328,6 +331,8 @@ function App() {
     setError('');
     setResult(null);
     setWhois(null);
+    setReachabilityData(null);
+    setSubdomainData(null);
 
     try {
       const r = await lookupDomain(target);
@@ -404,7 +409,18 @@ function App() {
       const results = [];
       for (let i = 0; i < domains.length; i += BATCH) {
         const batch = domains.slice(i, i + BATCH);
-        const batchResults = await Promise.all(batch.map(d => lookupDomain(d).catch(() => ({ domain: d, error: 'Network error' }))));
+        const batchResults = await Promise.all(batch.map(async d => {
+          try {
+            const res = await lookupDomain(d);
+            if (res.hasIPv6) {
+              try {
+                const reachRes = await fetch(`/api/reachability?domain=${encodeURIComponent(d)}`);
+                if (reachRes.ok) res.reachabilityData = await reachRes.json();
+              } catch { /* ignore */ }
+            }
+            return res;
+          } catch { return { domain: d, error: 'Network error' }; }
+        }));
         results.push(...batchResults);
         setBulkProgress({ done: results.length, total: domains.length });
       }
@@ -420,7 +436,8 @@ function App() {
 
   const handleExportSinglePDF = () => {
     if (!result) return;
-    generateSinglePDF(result).save(`${result.domain}-ipv6-report.pdf`);
+    const exportData = { ...result, reachabilityData, subdomainData };
+    generateSinglePDF(exportData).save(`${result.domain}-ipv6-report.pdf`);
   };
 
   const verdict = result
@@ -713,13 +730,13 @@ function App() {
             })()}
 
             {/* Reachability Test */}
-            <div className="divider" />
-            <ReachabilityTest domain={result.domain} hasIPv6={result.hasIPv6} />
+            <div className="reachability-wrapper">
+              <ReachabilityTest domain={result.domain} hasIPv6={result.hasIPv6} onComplete={setReachabilityData} />
+            </div>
 
             {/* Subdomain Scanner */}
             <div className="divider" />
-            <SubdomainScanner key={result.domain} domain={result.domain} />
-
+            <SubdomainScanner key={result.domain} domain={result.domain} onComplete={setSubdomainData} />
 
             {/* WHOIS */}
             <div className="divider" />

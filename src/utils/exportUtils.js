@@ -3,9 +3,9 @@ import autoTable from 'jspdf-autotable';
 import { getConclusion } from './dnsUtils';
 
 export function generateCSV(results) {
-  const header = 'Domain,Score,Verdict,Conclusion,Hosting Provider,DNS Provider,IPv6,IPv4,Dual Stack,MX IPv6,NS IPv6,DNSSEC,SPF,DMARC,Latency (ms),IPv6 Addresses,IPv4 Addresses,MX Hosts,NS Hosts,Error';
+  const header = 'Domain,Score,Verdict,Conclusion,Hosting Provider,DNS Provider,IPv6,IPv4,Dual Stack,MX IPv6,NS IPv6,DNSSEC,SPF,DMARC,Latency (ms),HTTP Reachable,HTTPS Reachable,IPv6 Addresses,IPv4 Addresses,MX Hosts,NS Hosts,Error';
   const rows = results.map(r => {
-    if (r.error) return `${r.domain},,,,,,,,,,,,,,,,,,,"${r.error}"`;
+    if (r.error) return `${r.domain},,,,,,,,,,,,,,,,,,,,,"${r.error}"`;
     const verdict = r.score >= 80 ? 'Ready' : r.score >= 40 ? 'Partial' : 'Not Ready';
     const conclusion = getConclusion(r);
     return [
@@ -20,6 +20,8 @@ export function generateCSV(results) {
       r.hasSPF ? 'Yes' : 'No',
       r.hasDMARC ? 'Yes' : 'No',
       r.latencyMs,
+      r.reachabilityData ? (r.reachabilityData.http.reachable ? 'Yes' : 'No') : 'N/A',
+      r.reachabilityData ? (r.reachabilityData.https.reachable ? 'Yes' : 'No') : 'N/A',
       `"${r.ipv6.map(i => i.ip).join(' ')}"`,
       `"${r.ipv4.map(i => i.ip).join(' ')}"`,
       `"${r.mx.map(m => m.hostname).join(' ')}"`,
@@ -52,6 +54,10 @@ export function generateJSON(results) {
       hasSPF: r.hasSPF,
       hasDMARC: r.hasDMARC
     },
+    reachability: r.reachabilityData ? {
+      http: r.reachabilityData.http.reachable,
+      https: r.reachabilityData.https.reachable,
+    } : null,
     error: r.error
   })), null, 2);
 }
@@ -64,20 +70,22 @@ export function generatePDF(results) {
   doc.text(`Generated on ${new Date().toLocaleString()}`, 14, 22);
 
   const tableData = results.map(r => {
-    if (r.error) return [r.domain, 'Error', r.error, '-', '-', '-'];
+    if (r.error) return [r.domain, 'Error', r.error, '-', '-', '-', '-', '-'];
     return [
       r.domain,
       r.score.toString(),
       r.hasIPv6 ? 'Yes' : 'No',
       !r.hasMX ? 'N/A' : r.mxHasIPv6 ? 'Yes' : 'No',
       !r.hasNS ? 'N/A' : r.nsHasIPv6 ? 'Yes' : 'No',
+      r.reachabilityData ? (r.reachabilityData.http.reachable ? 'Pass' : 'Fail') : '-',
+      r.reachabilityData ? (r.reachabilityData.https.reachable ? 'Pass' : 'Fail') : '-',
       getConclusion(r)
     ];
   });
 
   autoTable(doc, {
     startY: 28,
-    head: [['Domain', 'Score', 'Web IPv6', 'Mail IPv6', 'NS IPv6', 'Verdict']],
+    head: [['Domain', 'Score', 'Web IPv6', 'Mail IPv6', 'NS IPv6', 'HTTP', 'HTTPS', 'Verdict']],
     body: tableData,
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [79, 70, 229] },
@@ -87,7 +95,9 @@ export function generatePDF(results) {
       2: { cellWidth: 15 },
       3: { cellWidth: 15 },
       4: { cellWidth: 15 },
-      5: { cellWidth: 'auto' }
+      5: { cellWidth: 12 },
+      6: { cellWidth: 12 },
+      7: { cellWidth: 'auto' }
     }
   });
 
@@ -120,7 +130,9 @@ export function generateSinglePDF(r) {
       ['Name Servers (NS)', !r.hasNS ? 'None found' : r.nsHasIPv6 ? 'IPv6 Ready' : 'IPv4 Only'],
       ['DNSSEC', r.hasDNSSEC ? 'Enabled' : 'Missing'],
       ['SPF', r.hasSPF ? 'Enabled' : 'Missing'],
-      ['DMARC', r.hasDMARC ? 'Enabled' : 'Missing']
+      ['DMARC', r.hasDMARC ? 'Enabled' : 'Missing'],
+      ['Reachability Test (HTTP)', r.reachabilityData ? (r.reachabilityData.http.reachable ? `Pass (${r.reachabilityData.http.latencyMs}ms)` : 'Fail') : 'Not tested'],
+      ['Reachability Test (HTTPS)', r.reachabilityData ? (r.reachabilityData.https.reachable ? `Pass (${r.reachabilityData.https.latencyMs}ms)` : 'Fail') : 'Not tested']
     ],
     headStyles: { fillColor: [219, 39, 119] },
   });
@@ -156,6 +168,23 @@ export function generateSinglePDF(r) {
     });
   }
 
+  if (r.subdomainData && r.subdomainData.length > 0) {
+    const subBody = [];
+    r.subdomainData.forEach(sub => {
+      if (sub.exists) {
+        subBody.push([sub.fqdn, sub.ipv6.length > 0 ? 'IPv6 Supported' : 'IPv4 Only']);
+      }
+    });
+    if (subBody.length > 0) {
+      autoTable(doc, {
+        startY: doc.lastAutoTable.finalY + 10,
+        head: [['Discovered Subdomain', 'IPv6 Status']],
+        body: subBody,
+        headStyles: { fillColor: [59, 130, 246] },
+      });
+    }
+  }
+
   return doc;
 }
 
@@ -170,4 +199,3 @@ export function downloadFile(content, filename, type) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-
