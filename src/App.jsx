@@ -1,499 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import './index.css';
 import './App.css';
+import { Icon } from './components/Icon';
+import SubdomainScanner from './components/SubdomainScanner';
+import { cleanDomain, isValidDomain, lookupDomain, fetchWhois } from './utils/dnsUtils';
+import { generateCSV, generateJSON, generatePDF, generateSinglePDF, downloadFile } from './utils/exportUtils';
 
-/* ── Inline SVG Icons ── */
-const Icon = {
-  search: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
-    </svg>
-  ),
-  arrow: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
-    </svg>
-  ),
-  check: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12"/>
-    </svg>
-  ),
-  x: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
-    </svg>
-  ),
-  copy: (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect width="14" height="14" x="8" y="8" rx="0"/><path d="M4 16V4h12"/>
-    </svg>
-  ),
-  warn: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>
-    </svg>
-  ),
-  upload: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>
-    </svg>
-  ),
-  download: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
-    </svg>
-  ),
-  file: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>
-    </svg>
-  ),
-  share: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/>
-    </svg>
-  ),
-  sun: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
-    </svg>
-  ),
-  moon: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
-    </svg>
-  ),
-  clock: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-    </svg>
-  ),
-  trash: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-    </svg>
-  ),
-};
 
 /* ────────────────────────────
    Helpers
    ──────────────────────────── */
-function cleanDomain(input) {
-  let s = input.trim();
-  s = s.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, '');
-  s = s.split(/[/:?#]/)[0];
-  s = s.replace(/\.$/, '');
-  return s.toLowerCase();
-}
-
-function isValidDomain(d) {
-  return d && /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/.test(d);
-}
-
-async function dohQuery(name, type) {
-  const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(name)}&type=${type}`, { cache: 'no-store' });
-  return res.json();
-}
-
-/* Check if a hostname has AAAA records */
-async function hasAAAA(hostname) {
-  try {
-    const data = await dohQuery(hostname, 'AAAA');
-    const addrs = (data.Answer || []).filter(a => a.type === 28).map(a => a.data);
-    return { hostname, ipv6: addrs, hasIPv6: addrs.length > 0 };
-  } catch {
-    return { hostname, ipv6: [], hasIPv6: false };
-  }
-}
-
-/* ── Full domain lookup ── */
-async function lookupDomain(target) {
-  const t0 = performance.now();
-
-  /* Phase 1: A, AAAA, MX, NS, DNSKEY, TXT (root), TXT (_dmarc), and CNAMEs in parallel */
-  const [dataAAAA, dataA, dataMX, dataNS, dataDNSKEY, dataTXT, dataDMARC, dataCNAME, dataWwwCNAME] = await Promise.all([
-    dohQuery(target, 'AAAA'),
-    dohQuery(target, 'A'),
-    dohQuery(target, 'MX'),
-    dohQuery(target, 'NS'),
-    dohQuery(target, 'DNSKEY'),
-    dohQuery(target, 'TXT'),
-    dohQuery(`_dmarc.${target}`, 'TXT'),
-    dohQuery(target, 'CNAME'),
-    dohQuery(`www.${target}`, 'CNAME')
-  ]);
-
-  if (dataAAAA.Status === 3 && dataA.Status === 3) return { domain: target, error: 'NXDOMAIN' };
-  if (dataAAAA.Status === 2 && dataA.Status === 2) return { domain: target, error: 'SERVFAIL' };
-
-  const ipv6 = (dataAAAA.Answer || []).filter(a => a.type === 28).map(a => ({ ip: a.data, ttl: a.TTL }));
-  const ipv4 = (dataA.Answer || []).filter(a => a.type === 1).map(a => ({ ip: a.data, ttl: a.TTL }));
-
-  /* Extract MX hostnames (type 15, data format: "10 mail.example.com.") */
-  const mxHosts = (dataMX.Answer || [])
-    .filter(a => a.type === 15)
-    .map(a => { const parts = a.data.split(/\s+/); return { priority: parseInt(parts[0]) || 0, host: (parts[1] || '').replace(/\.$/, '').toLowerCase() }; })
-    .filter(m => m.host)
-    .sort((a, b) => a.priority - b.priority);
-
-  /* Extract NS hostnames (type 2) */
-  const nsHosts = (dataNS.Answer || [])
-    .filter(a => a.type === 2)
-    .map(a => a.data.replace(/\.$/, '').toLowerCase())
-    .filter(Boolean);
-
-  /* Phase 2: Check AAAA for each MX and NS host in parallel */
-  const [mxResults, nsResults] = await Promise.all([
-    Promise.all(mxHosts.map(m => hasAAAA(m.host).then(r => ({ ...r, priority: m.priority })))),
-    Promise.all(nsHosts.map(ns => hasAAAA(ns))),
-  ]);
-
-  const latencyMs = Math.round(performance.now() - t0);
-
-  const mxHasIPv6 = mxResults.some(m => m.hasIPv6);
-  const nsHasIPv6 = nsResults.some(n => n.hasIPv6);
-
-  /* Security / TXT Check */
-  const hasDNSSEC = (dataDNSKEY.Answer || []).some(a => a.type === 48);
-  const hasSPF = (dataTXT.Answer || []).some(a => a.type === 16 && a.data.includes('v=spf1'));
-  const hasDMARC = (dataDMARC.Answer || []).some(a => a.type === 16 && a.data.includes('v=DMARC1'));
-
-  /* ── Cloud Intelligence ── */
-  let hosting = null;
-  let dnsProvider = null;
-  
-  const nsStr = nsHosts.join(' ');
-  if (nsStr.includes('cloudflare.com')) dnsProvider = 'Cloudflare';
-  else if (nsStr.includes('awsdns')) dnsProvider = 'AWS Route53';
-  else if (nsStr.includes('vercel-dns')) dnsProvider = 'Vercel';
-  else if (nsStr.includes('googledomains')) dnsProvider = 'Google Domains';
-  else if (nsStr.includes('namecheap')) dnsProvider = 'Namecheap';
-  else if (nsStr.includes('domaincontrol.com')) dnsProvider = 'GoDaddy';
-  else if (nsStr.includes('digitalocean.com')) dnsProvider = 'DigitalOcean';
-
-  const cnames = [
-    ...(dataCNAME.Answer || []).map(a => a.data.toLowerCase()),
-    ...(dataWwwCNAME.Answer || []).map(a => a.data.toLowerCase())
-  ];
-  
-  const cnameStr = cnames.join(' ');
-  const ipStr = ipv4.map(i => i.ip).join(' ');
-
-  if (cnameStr.includes('github.io') || ipStr.includes('185.199.108')) hosting = 'GitHub Pages';
-  else if (cnameStr.includes('vercel-dns') || ipStr.includes('76.76.21.21')) hosting = 'Vercel';
-  else if (cnameStr.includes('myshopify.com') || ipStr.includes('23.227.38')) hosting = 'Shopify';
-  else if (cnameStr.includes('netlify.app')) hosting = 'Netlify';
-  else if (cnameStr.includes('herokudns.com') || cnameStr.includes('herokuapp.com')) hosting = 'Heroku';
-  else if (cnameStr.includes('amazonaws.com') || cnameStr.includes('cloudfront.net')) hosting = 'AWS';
-  else if (cnameStr.includes('fastly.net')) hosting = 'Fastly';
-  else if (dnsProvider === 'Cloudflare' && !hosting) hosting = 'Cloudflare (Proxy)';
-
-  /* Scoring: 100 total */
-  let score = 0;
-  const breakdown = [];
-
-  if (ipv6.length > 0) { score += 40; breakdown.push({ text: 'Root domain has AAAA record', points: '+40', color: 'green' }); }
-  else { breakdown.push({ text: 'Root domain missing AAAA record', points: '0', color: 'red' }); }
-
-  if (ipv4.length > 0 && ipv6.length > 0) { score += 10; breakdown.push({ text: 'Dual-stack configuration', points: '+10', color: 'green' }); }
-  else if (ipv4.length > 0) { breakdown.push({ text: 'IPv4 only (No dual-stack bonus)', points: '0', color: 'red' }); }
-
-  if (ipv6.length >= 2) { score += 5; breakdown.push({ text: 'IPv6 redundancy (2+ IPs)', points: '+5', color: 'green' }); }
-
-  if (mxHosts.length === 0) { score += 20; breakdown.push({ text: 'No MX servers (skipping)', points: '+20', color: 'gray' }); }
-  else if (mxHasIPv6) { score += 20; breakdown.push({ text: 'Mail server (MX) has IPv6', points: '+20', color: 'green' }); }
-  else { breakdown.push({ text: 'Mail server (MX) missing IPv6', points: '0', color: 'red' }); }
-
-  if (nsHosts.length === 0) { score += 15; breakdown.push({ text: 'No NS servers (skipping)', points: '+15', color: 'gray' }); }
-  else if (nsHasIPv6) { score += 15; breakdown.push({ text: 'Name server (NS) has IPv6', points: '+15', color: 'green' }); }
-  else { breakdown.push({ text: 'Name server (NS) missing IPv6', points: '0', color: 'red' }); }
-
-  if (mxHosts.length > 0 && mxResults.every(m => m.hasIPv6)) { score += 5; breakdown.push({ text: 'All MX servers have IPv6', points: '+5', color: 'green' }); }
-  else if (mxHosts.length === 0) { score += 5; }
-
-  if (nsHosts.length > 0 && nsResults.every(n => n.hasIPv6)) { score += 5; breakdown.push({ text: 'All NS servers have IPv6', points: '+5', color: 'green' }); }
-  else if (nsHosts.length === 0) { score += 5; }
-
-  return {
-    domain: target,
-    ipv6, ipv4,
-    mx: mxResults,
-    ns: nsResults,
-    latencyMs,
-    score: Math.min(score, 100),
-    breakdown,
-    hasIPv6: ipv6.length > 0,
-    hasIPv4: ipv4.length > 0,
-    mxHasIPv6,
-    nsHasIPv6,
-    hasMX: mxHosts.length > 0,
-    hasNS: nsHosts.length > 0,
-    hasDNSSEC,
-    hasSPF,
-    hasDMARC,
-    hosting,
-    dnsProvider,
-    error: null,
-  };
-}
-
-/* ── WHOIS via RDAP (async, non-blocking) ── */
-async function fetchWhois(domain) {
-  try {
-    const res = await fetch(`https://rdap.org/domain/${encodeURIComponent(domain)}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-
-    const events = data.events || [];
-    const find = (action) => events.find(e => e.eventAction === action)?.eventDate || null;
-
-    /* Registrar name from entities */
-    let registrar = null;
-    for (const ent of data.entities || []) {
-      if (ent.roles?.includes('registrar')) {
-        const vcard = ent.vcardArray?.[1];
-        if (vcard) {
-          const fn = vcard.find(v => v[0] === 'fn');
-          if (fn) registrar = fn[3];
-        }
-        break;
-      }
-    }
-
-    /* Nameservers from RDAP */
-    const nameservers = (data.nameservers || []).map(ns => ns.ldhName?.toLowerCase()).filter(Boolean);
-
-    return {
-      registrar,
-      created: find('registration'),
-      expires: find('expiration'),
-      updated: find('last changed'),
-      nameservers,
-      status: data.status || [],
-    };
-  } catch {
-    return null;
-  }
-}
-
-function getConclusion(r) {
-  if (r.error) return `Error: ${r.error}`;
-  if (r.score >= 100) return 'Perfectly configured for IPv6 across all services.';
-  if (r.score >= 80) return 'Excellent IPv6 readiness, with minor non-critical gaps.';
-  if (!r.hasIPv6) return 'Completely unreachable via IPv6; immediate action required.';
-  if (r.hasIPv6 && !r.hasIPv4) return 'IPv6-only configuration (may be inaccessible to older IPv4 clients).';
-  if (!r.mxHasIPv6 && r.hasMX) return 'Web server is IPv6 ready, but mail servers are IPv4 only.';
-  if (!r.nsHasIPv6 && r.hasNS) return 'Web server is IPv6 ready, but name servers are IPv4 only.';
-  return 'Partial IPv6 support; further configuration needed.';
-}
-
-/* ── CSV, JSON, PDF ── */
-function generateCSV(results) {
-  const header = 'Domain,Score,Verdict,Conclusion,Hosting Provider,DNS Provider,IPv6,IPv4,Dual Stack,MX IPv6,NS IPv6,DNSSEC,SPF,DMARC,Latency (ms),IPv6 Addresses,IPv4 Addresses,MX Hosts,NS Hosts,Error';
-  const rows = results.map(r => {
-    if (r.error) return `${r.domain},,,,,,,,,,,,,,,,,,,"${r.error}"`;
-    const verdict = r.score >= 80 ? 'Ready' : r.score >= 40 ? 'Partial' : 'Not Ready';
-    const conclusion = getConclusion(r);
-    return [
-      r.domain, r.score, verdict, `"${conclusion}"`,
-      `"${r.hosting || 'Unknown'}"`, `"${r.dnsProvider || 'Unknown'}"`,
-      r.hasIPv6 ? 'Yes' : 'No',
-      r.hasIPv4 ? 'Yes' : 'No',
-      r.hasIPv4 && r.hasIPv6 ? 'Yes' : 'No',
-      !r.hasMX ? 'N/A' : r.mxHasIPv6 ? 'Yes' : 'No',
-      !r.hasNS ? 'N/A' : r.nsHasIPv6 ? 'Yes' : 'No',
-      r.hasDNSSEC ? 'Yes' : 'No',
-      r.hasSPF ? 'Yes' : 'No',
-      r.hasDMARC ? 'Yes' : 'No',
-      r.latencyMs,
-      `"${r.ipv6.map(a => a.ip).join('; ')}"`,
-      `"${r.ipv4.map(a => a.ip).join('; ')}"`,
-      `"${r.mx.map(m => m.hostname).join('; ')}"`,
-      `"${r.ns.map(n => n.hostname).join('; ')}"`,
-      '',
-    ].join(',');
-  });
-  return header + '\n' + rows.join('\n');
-}
-
-function generateJSON(results) {
-  const mapped = results.map(r => {
-    if (r.error) return { domain: r.domain, error: r.error };
-    return {
-      domain: r.domain,
-      score: r.score,
-      verdict: r.score >= 80 ? 'Ready' : r.score >= 40 ? 'Partial' : 'Not Ready',
-      conclusion: getConclusion(r),
-      hostingProvider: r.hosting || 'Unknown',
-      dnsProvider: r.dnsProvider || 'Unknown',
-      hasIPv6: r.hasIPv6,
-      hasIPv4: r.hasIPv4,
-      dualStack: !!(r.hasIPv4 && r.hasIPv6),
-      mxIPv6: !r.hasMX ? 'N/A' : r.mxHasIPv6,
-      nsIPv6: !r.hasNS ? 'N/A' : r.nsHasIPv6,
-      hasDNSSEC: r.hasDNSSEC,
-      hasSPF: r.hasSPF,
-      hasDMARC: r.hasDMARC,
-      latencyMs: r.latencyMs,
-      ipv6Addresses: r.ipv6,
-      ipv4Addresses: r.ipv4,
-      mxServers: r.mx,
-      nsServers: r.ns
-    };
-  });
-  return JSON.stringify(mapped, null, 2);
-}
-
-function generatePDF(results) {
-  const doc = new jsPDF();
-  doc.text("IPv6 Checker Bulk Results", 14, 15);
-  doc.setFontSize(10);
-  doc.text(`Generated on ${new Date().toLocaleDateString()}`, 14, 22);
-
-  const head = [['Domain', 'Score', 'Verdict', 'IPv6', 'IPv4', 'Conclusion']];
-  const body = results.map(r => {
-    if (r.error) return [r.domain, '-', '-', '-', '-', `Error: ${r.error}`];
-    return [
-      r.domain,
-      r.score.toString(),
-      r.score >= 80 ? 'Ready' : r.score >= 40 ? 'Partial' : 'Not Ready',
-      r.hasIPv6 ? 'Yes' : 'No',
-      r.hasIPv4 ? 'Yes' : 'No',
-      getConclusion(r)
-    ];
-  });
-
-  autoTable(doc, {
-    startY: 28,
-    head: head,
-    body: body,
-    headStyles: { fillColor: [219, 39, 119] },
-    styles: { fontSize: 8 },
-    columnStyles: {
-      0: { cellWidth: 35 },
-      5: { cellWidth: 'auto' }
-    }
-  });
-
-  doc.addPage();
-  doc.setFontSize(14);
-  doc.text("Detailed Domain Summaries", 14, 15);
-  let currentY = 25;
-
-  results.filter(r => !r.error).forEach((r) => {
-    // Check if we need a new page
-    if (currentY > 250) {
-      doc.addPage();
-      currentY = 20;
-    }
-    
-    doc.setFontSize(12);
-    doc.text(`${r.domain} — Score: ${r.score}%`, 14, currentY);
-    currentY += 6;
-
-    const srvBody = [];
-    srvBody.push(['IPv6 (AAAA)', r.hasIPv6 ? `${r.ipv6.length} records` : 'Missing', '']);
-    srvBody.push(['IPv4 (A)', r.hasIPv4 ? `${r.ipv4.length} records` : 'Missing', '']);
-    srvBody.push(['MX Servers', r.hasMX ? `${r.mx.length} configured` : 'None', r.hasMX ? (r.mxHasIPv6 ? 'IPv6 Supported' : 'IPv4 Only') : '-']);
-    srvBody.push(['NS Servers', r.hasNS ? `${r.ns.length} found` : 'None', r.hasNS ? (r.nsHasIPv6 ? 'IPv6 Supported' : 'IPv4 Only') : '-']);
-    srvBody.push(['Infrastructure', r.hosting || 'Custom/Unknown', r.dnsProvider || 'Custom DNS']);
-    srvBody.push(['Security', 'DNSSEC / SPF / DMARC', `${r.hasDNSSEC ? 'Y' : 'N'} / ${r.hasSPF ? 'Y' : 'N'} / ${r.hasDMARC ? 'Y' : 'N'}`]);
-
-    autoTable(doc, {
-      startY: currentY,
-      head: [['Resource', 'Details', 'Support / Config']],
-      body: srvBody,
-      headStyles: { fillColor: [79, 70, 229] },
-      styles: { fontSize: 8, cellPadding: 2 },
-      margin: { left: 14, right: 14 }
-    });
-    
-    currentY = doc.lastAutoTable.finalY + 12;
-  });
-
-  return doc;
-}
-
-function generateSinglePDF(r) {
-  const doc = new jsPDF();
-  doc.text(`IPv6 Readiness Report: ${r.domain}`, 14, 15);
-  doc.setFontSize(10);
-  doc.text(`Generated on ${new Date().toLocaleDateString()}`, 14, 22);
-
-  doc.setFontSize(14);
-  doc.text(`Score: ${r.score}% (${r.score >= 80 ? 'Ready' : r.score >= 40 ? 'Partial' : 'Not Ready'})`, 14, 35);
-  doc.setFontSize(11);
-  
-  const conclusion = getConclusion(r);
-  doc.text(`Conclusion: ${conclusion}`, 14, 45, { maxWidth: 180 });
-
-  autoTable(doc, {
-    startY: 55,
-    head: [['Configuration', 'Status']],
-    body: [
-      ['IPv6 (AAAA) Records', r.hasIPv6 ? `${r.ipv6.length} found` : 'Missing'],
-      ['IPv4 (A) Records', r.hasIPv4 ? `${r.ipv4.length} found` : 'Missing'],
-      ['Dual-stack', (r.hasIPv4 && r.hasIPv6) ? 'Yes' : 'No'],
-      ['Hosting Provider', r.hosting || 'Unknown'],
-      ['DNS Provider', r.dnsProvider || 'Unknown'],
-      ['Mail Servers (MX)', !r.hasMX ? 'None configured' : r.mxHasIPv6 ? 'IPv6 Ready' : 'IPv4 Only'],
-      ['Name Servers (NS)', !r.hasNS ? 'None found' : r.nsHasIPv6 ? 'IPv6 Ready' : 'IPv4 Only'],
-      ['DNSSEC', r.hasDNSSEC ? 'Enabled' : 'Missing'],
-      ['SPF', r.hasSPF ? 'Enabled' : 'Missing'],
-      ['DMARC', r.hasDMARC ? 'Enabled' : 'Missing']
-    ],
-    headStyles: { fillColor: [219, 39, 119] },
-  });
-
-  autoTable(doc, {
-    startY: doc.lastAutoTable.finalY + 10,
-    head: [['Score Breakdown', 'Points Awarded']],
-    body: r.breakdown.map(b => [b.text, b.points]),
-    headStyles: { fillColor: [79, 70, 229] },
-  });
-
-  const ipBody = [];
-  r.ipv6.forEach(rec => ipBody.push(['AAAA (IPv6)', rec.ip, `${rec.ttl}s`]));
-  r.ipv4.forEach(rec => ipBody.push(['A (IPv4)', rec.ip, `${rec.ttl}s`]));
-  if (ipBody.length > 0) {
-    autoTable(doc, {
-      startY: doc.lastAutoTable.finalY + 10,
-      head: [['DNS Record Type', 'IP Address', 'TTL']],
-      body: ipBody,
-      headStyles: { fillColor: [5, 150, 105] },
-    });
-  }
-
-  const srvBody = [];
-  r.mx.forEach(m => srvBody.push(['MX', m.hostname, m.priority, m.hasIPv6 ? 'IPv6 Supported' : 'IPv4 Only']));
-  r.ns.forEach(n => srvBody.push(['NS', n.hostname, '-', n.hasIPv6 ? 'IPv6 Supported' : 'IPv4 Only']));
-  if (srvBody.length > 0) {
-    autoTable(doc, {
-      startY: doc.lastAutoTable.finalY + 10,
-      head: [['Server Type', 'Hostname', 'Priority', 'Support']],
-      body: srvBody,
-      headStyles: { fillColor: [217, 119, 6] },
-    });
-  }
-
-  return doc;
-}
-
-function downloadFile(content, filename, type) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
 /* ── History ── */
 const HISTORY_KEY = 'ipv6checker_history';
 const MAX_HISTORY = 50;
@@ -686,6 +202,85 @@ function DomainScreenshot({ url }) {
           onLoad={() => setLoading(false)}
           onError={() => setError(true)}
         />
+      )}
+    </div>
+  );
+}
+
+/* ── Server Reachability Test ── */
+function ReachabilityTest({ domain, hasIPv6 }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const testReachability = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/reachability?domain=${encodeURIComponent(domain)}`);
+      if (!res.ok) throw new Error('API unavailable or error');
+      const d = await res.json();
+      setData(d);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [domain]);
+
+  useEffect(() => {
+    if (hasIPv6) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      testReachability();
+    }
+  }, [hasIPv6, testReachability]);
+
+  if (!hasIPv6) {
+    return (
+      <div className="reachability-section">
+        <div className="reachability-header">
+          <p className="section-title">Real Reachability Test</p>
+        </div>
+        <p className="reachability-desc">
+          DNS checks only prove the records exist. This test makes an actual strict-IPv6 connection to your web server.
+        </p>
+        <p className="reachability-na">{Icon.warn} Reachability test disabled because no IPv6 (AAAA) records were found.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="reachability-section">
+      <div className="reachability-header">
+        <p className="section-title">Real Reachability Test</p>
+      </div>
+      <p className="reachability-desc">
+        DNS checks only prove the records exist. This test makes an actual strict-IPv6 connection to your web server.
+      </p>
+
+      {loading && <p className="reachability-loading">Testing strictly over IPv6...</p>}
+      {error && <p className="reachability-na">Reachability API unavailable. Are you running locally without Vercel?</p>}
+      
+      {data && (
+        <div className="reachability-results">
+          <div className={`reachability-card ${data.http.reachable ? 'pass' : 'fail'}`}>
+            <div className="reachability-card-title">HTTP (Port 80)</div>
+            <div className={`reachability-status ${data.http.reachable ? 'pass' : 'fail'}`}>
+              {data.http.reachable ? <>{Icon.check} Reachable ({data.http.status})</> : <>{Icon.x} Unreachable</>}
+            </div>
+            {data.http.reachable && <div className="reachability-meta">{data.http.latencyMs}ms</div>}
+            {!data.http.reachable && <div className="reachability-meta">{data.http.error || 'Connection failed'}</div>}
+          </div>
+          
+          <div className={`reachability-card ${data.https.reachable ? 'pass' : 'fail'}`}>
+            <div className="reachability-card-title">HTTPS (Port 443)</div>
+            <div className={`reachability-status ${data.https.reachable ? 'pass' : 'fail'}`}>
+              {data.https.reachable ? <>{Icon.check} Reachable ({data.https.status})</> : <>{Icon.x} Unreachable</>}
+            </div>
+            {data.https.reachable && <div className="reachability-meta">{data.https.latencyMs}ms</div>}
+            {!data.https.reachable && <div className="reachability-meta">{data.https.error || 'Connection failed'}</div>}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1116,6 +711,15 @@ function App() {
                 </>
               );
             })()}
+
+            {/* Reachability Test */}
+            <div className="divider" />
+            <ReachabilityTest domain={result.domain} hasIPv6={result.hasIPv6} />
+
+            {/* Subdomain Scanner */}
+            <div className="divider" />
+            <SubdomainScanner key={result.domain} domain={result.domain} />
+
 
             {/* WHOIS */}
             <div className="divider" />

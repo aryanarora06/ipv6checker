@@ -1,18 +1,20 @@
 # ipv6checker
 
-A fast, client-side, browser-based tool to check the IPv6 readiness of any domain. Built with React and Vite.
+A fast, beautifully designed tool to check the IPv6 readiness and real-world reachability of any domain. Built with React and Vite.
 
-![ipv6checker UI](https://img.shields.io/badge/UI-Premium_Aesthetics-e11d48) ![Client-side](https://img.shields.io/badge/Privacy-100%25_Client--Side-22c55e) ![Exports](https://img.shields.io/badge/Exports-PDF,_CSV,_JSON-3b82f6)
+![ipv6checker UI](https://img.shields.io/badge/UI-Premium_Aesthetics-e11d48) ![Architecture](https://img.shields.io/badge/Architecture-Hybrid_Client/Serverless-22c55e) ![Exports](https://img.shields.io/badge/Exports-PDF,_CSV,_JSON-3b82f6)
 
 ## Overview
 
 `ipv6checker` allows users to quickly verify if a website, its mail servers, and its name servers are ready for the modern IPv6 internet. 
 
-Because it operates **100% client-side**, all queries are executed directly from the user's browser using Google's DNS-over-HTTPS API (`dns.google`). This means no backend servers are required, your queries remain private, and the tool can be hosted cheaply as a static site on platforms like GitHub Pages, Vercel, or Netlify.
+The core DNS queries are executed directly from the user's browser using Google's DNS-over-HTTPS API (`dns.google`). However, the tool also features a **Real Reachability Test**, powered by a lightweight Vercel serverless function (`api/reachability.js`), which makes strict IPv6 HTTP and HTTPS connection tests to prove the web server is actively listening for IPv6 traffic.
 
 ## Features
 
 - **Single Domain Lookup**: Get an instant readiness score (0-100) based on AAAA records.
+- **Real Reachability Test (NEW)**: Connects to the target domain strictly over IPv6 on ports 80 (HTTP) and 443 (HTTPS) to verify the server software is correctly configured to serve traffic, beyond just having a DNS record.
+- **Subdomain Scanner (NEW)**: Automatically scans common subdomains (www, mail, blog, api, etc.) to see if they are missing IPv6 support.
 - **Live Website Screenshot**: Automatically fetches and displays a gorgeous 16:9 widescreen screenshot of the target domain.
 - **Deep DNS Inspection**: Automatically discovers and checks all Mail servers (MX) and Name servers (NS) for IPv6 support.
 - **Security Checkup**: Validates the presence of crucial DNS security records (DNSSEC, SPF, and DMARC).
@@ -44,6 +46,31 @@ Domains are evaluated out of **100 points**, broken down as follows:
 - `⚠️ Partial` (40% - 79%)
 - `❌ Not Ready` (0% - 39%)
 
+## How It Works (Under the Hood)
+
+`ipv6checker` evaluates domains through a layered architecture, combining high-speed client-side DNS lookups with server-side application-layer testing to provide a complete picture of IPv6 readiness.
+
+### 1. Client-Side DNS Resolution (Network Layer)
+When a domain is queried, the app makes asynchronous requests directly from your browser to Google's DNS-over-HTTPS (DoH) API (`dns.google`). 
+- It asks for both **A records (IPv4)** and **AAAA records (IPv6)**.
+- Using DoH ensures that local ISP DNS caches don't interfere with the results, and doing it client-side means the app remains blazing fast without requiring a backend to proxy the requests.
+
+### 2. The Real Reachability Test (Application Layer)
+Just because a domain has an IPv6 DNS record doesn't mean the web server is actually configured to handle the traffic. To test this:
+- The React app pings the `/api/reachability` serverless function.
+- The Node.js backend uses native `http` and `https` modules to perform a fast `HEAD` request to both port 80 and port 443 of the target domain.
+- **The Magic:** It explicitly passes the `{ family: 6 }` parameter to the network socket. This strictly forces Node.js to connect *only* via the IPv6 network. If the web server's firewall blocks IPv6, or if software like Nginx/Apache isn't listening for IPv6 connections, this test correctly fails, revealing false-positives.
+
+### 3. Deep DNS Inspection (MX & NS Mapping)
+A fully IPv6-ready infrastructure isn't just about the web server. The app recursively maps out the domain's backbone:
+- **Mail Servers (MX):** It fetches the domain's MX records, extracts the hostnames of the mail servers (e.g., `alt1.aspmx.l.google.com`), and performs secondary AAAA lookups on *every single mail server* to ensure inbound emails can be delivered over IPv6.
+- **Name Servers (NS):** It fetches the domain's authoritative NS records and checks them for AAAA records to ensure the DNS resolution process itself is IPv6-ready.
+
+### 4. Security & Compliance Checks
+While scanning, the app parses `TXT` records to look for critical security implementations:
+- **SPF & DMARC:** It searches the `TXT` strings for `v=spf1` and `v=DMARC1` to verify email sender authentication is configured.
+- **DNSSEC:** It queries the DNS API with the `cd` (Checking Disabled) and `do` (DNSSEC OK) flags to verify if cryptographic signatures exist for the domain's records.
+
 ## Usage Guide
 
 ### Single Domain Check
@@ -51,7 +78,7 @@ Domains are evaluated out of **100 points**, broken down as follows:
 2. Enter a domain name in the search bar (e.g., `google.com`).
    - *Note: URLs like `https://github.com/about` will be automatically stripped down to `github.com`.*
 3. Press **Enter** or click **Check**. 
-4. The result card will display a live screenshot, the verdict, actionable next steps, exact DNS records found, latency, and domain registration info.
+4. The result card will display a live screenshot, the verdict, reachability status, actionable next steps, exact DNS records found, subdomain status, latency, and domain registration info.
 5. Click **Share** to copy a direct link to this result, or **Export** to download a beautiful PDF report.
 
 ### Bulk Domain Check
@@ -84,12 +111,7 @@ To run this project locally, you must install **Node.js** (which includes `npm`,
 1. **Install GitHub CLI:** Download and install from [cli.github.com](https://cli.github.com/).
 2. **Install Node.js (v18+ recommended):**
    - **Windows / Mac:** Download the official installer from the [Node.js website](https://nodejs.org/).
-   - **Linux:** We recommend using Node Version Manager (nvm). Run:
-     ```bash
-     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-     nvm install 20
-     nvm use 20
-     ```
+   - **Linux:** We recommend using Node Version Manager (nvm).
 
 ### Installation
 
@@ -118,9 +140,13 @@ npm run build
 ```
 The static files will be generated in the `dist/` directory.
 
+### Deployment Note
+For the Real Reachability Test to work, this app should be deployed to **Vercel** (or an environment supporting standard serverless functions), as it relies on the `/api/reachability.js` endpoint to perform native Node.js HTTP/HTTPS requests.
+
 ### Built With
 - **React** & **Vite**
 - **Vanilla CSS** (Custom properties, responsive flexbox/grid, seamless animations)
+- **Node.js API** (Serverless endpoints)
 - **jsPDF** & **jsPDF-AutoTable** (Client-side PDF generation)
 - **@fontsource** (Self-hosted fonts: JetBrains Mono and Inter)
 - **Microlink API** (Live website screenshots)

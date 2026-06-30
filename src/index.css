@@ -91,3 +91,43 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/* Tooltip */
+[data-tooltip] {
+  position: relative;
+  cursor: help;
+  border-bottom: 1px dotted var(--text-dim);
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: var(--bg-elevated);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  white-space: normal;
+  width: max-content;
+  max-width: 260px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 100;
+  pointer-events: none;
+  border: 1px solid var(--border-light);
+  line-height: 1.4;
+  text-align: center;
+}
+
+[data-tooltip]:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}

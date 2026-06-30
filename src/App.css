@@ -1047,6 +1047,217 @@
   font-weight: 500;
 }
 
+/* ── Reachability Test ── */
+.reachability-section {
+  padding: 24px;
+}
+
+.reachability-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.reachability-header .section-title {
+  margin: 0;
+}
+
+.reachability-desc {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+  margin-top: 8px;
+}
+
+.reachability-loading, .reachability-na {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}
+
+.reachability-results {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.reachability-card {
+  padding: 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.reachability-card.pass {
+  border-color: var(--green);
+}
+
+.reachability-card.fail {
+  border-color: var(--red);
+}
+
+.reachability-card-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.reachability-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reachability-status.pass {
+  color: var(--green);
+}
+
+.reachability-status.fail {
+  color: var(--red);
+}
+
+.reachability-meta {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* ── Subdomain Scanner ── */
+.subdomain-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.subdomain-desc {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+  margin-top: 8px;
+}
+
+.subdomain-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  padding: 16px 0;
+}
+
+.btn-scan {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all var(--trans-fast);
+}
+
+.btn-scan:hover {
+  background: var(--bg-hover);
+  border-color: var(--text-dim);
+  transform: translateY(-1px);
+}
+
+.btn-scan:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.btn-scan-sm {
+  padding: 4px 12px;
+  font-size: 0.75rem;
+}
+
+.tag-sub { background: #f59e0b20; color: #f59e0b; border: 1px solid #f59e0b40; }
+
+/* Summary stats */
+.subdomain-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.subdomain-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.subdomain-stat-num {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1.2;
+}
+
+.subdomain-stat-green { color: var(--green); }
+.subdomain-stat-red { color: var(--red); }
+
+.subdomain-stat-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+
+/* Progress bar */
+.subdomain-progress {
+  margin-bottom: 16px;
+}
+
+.subdomain-progress-track {
+  height: 6px;
+  background: var(--red-dim);
+  overflow: hidden;
+}
+
+.subdomain-progress-fill {
+  height: 100%;
+  background: var(--green);
+  transition: width 0.5s ease;
+}
+
+.subdomain-progress-label {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-top: 6px;
+  display: block;
+}
+
+/* Toggle */
+.subdomain-toggle {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--accent);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-top: none;
+  cursor: pointer;
+  transition: all var(--trans-base);
+}
+
+.subdomain-toggle:hover {
+  background: var(--bg-hover);
+}
+
+
 /* ── History ── */
 .history-section {
   padding: 0 24px 48px;
@@ -1397,5 +1608,9 @@
   .whois-grid {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .subdomain-summary {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
