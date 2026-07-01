@@ -55,6 +55,12 @@ const reachabilityPlugin = () => ({
 });
 
 export default defineConfig({
+  server: {
+    open: true
+  },
+  build: {
+    chunkSizeWarningLimit: 1000,
+  },
   plugins: [
     react(),
     reachabilityPlugin(),

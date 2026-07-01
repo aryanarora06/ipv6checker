@@ -28,5 +28,9 @@
     "globals": "^17.6.0",
     "vite": "^8.0.12",
     "vite-plugin-pwa": "^1.3.0"
+  },
+  "overrides": {
+    "source-map": "^0.7.4",
+    "glob": "^12.0.0"
   }
 }
