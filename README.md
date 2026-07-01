@@ -2,7 +2,7 @@
 
 A fast, beautifully designed tool to check the IPv6 readiness and real-world reachability of any domain. Built with React and Vite.
 
-![ipv6checker UI](https://img.shields.io/badge/UI-Premium_Aesthetics-e11d48) ![Architecture](https://img.shields.io/badge/Architecture-Hybrid_Client/Serverless-22c55e) ![Exports](https://img.shields.io/badge/Exports-PDF,_CSV,_JSON-3b82f6)
+![ipv6checker UI](https://img.shields.io/badge/UI-Clean-e11d48) ![Architecture](https://img.shields.io/badge/Architecture-Hybrid_Client/Serverless-22c55e) ![Exports](https://img.shields.io/badge/Exports-PDF,_CSV,_JSON-3b82f6)
 
 ## Overview
 
@@ -21,7 +21,7 @@ The core DNS queries are executed directly from the user's browser using Google'
 - **Interactive Scoring Breakdown**: Click to reveal exactly how your readiness score was calculated point-by-point.
 - **Actionable Next Steps**: Automatically generates a prioritized "Next Steps to 100%" list, dynamically sorted by the highest impact actions you need to take to fix your domain.
 - **Bulk Processing**: Upload a text or CSV file to check hundreds of domains at once. The app batches queries to respect DNS API rate limits.
-- **Premium Reporting & Exports**:
+- **Clean Reporting & Exports**:
   - Export single domain reports as polished **PDFs**.
   - Export bulk runs as **CSV**, **JSON**, or multi-page **PDFs** containing high-level overviews and detailed summaries for every domain scanned.
 - **WHOIS & Registration Info**: Connects to the RDAP protocol to fetch domain registration dates and registrar information.
@@ -31,7 +31,7 @@ The core DNS queries are executed directly from the user's browser using Google'
 
 ## The Scoring System
 
-Domains are evaluated out of **100 points**, broken down as follows:
+Domains are evaluated out of **100 points**, broken down as follows (pretty much arbitrary - can be set according to requirements):
 
 - **+40 points**: The main domain has at least one IPv6 (AAAA) record.
 - **+10 points**: The domain is Dual-Stack (has both IPv4 and IPv6).
@@ -46,7 +46,7 @@ Domains are evaluated out of **100 points**, broken down as follows:
 - `⚠️ Partial` (40% - 79%)
 - `❌ Not Ready` (0% - 39%)
 
-## How It Works (Under the Hood)
+## How It Works
 
 `ipv6checker` evaluates domains through a layered architecture, combining high-speed client-side DNS lookups with server-side application-layer testing to provide a complete picture of IPv6 readiness.
 
